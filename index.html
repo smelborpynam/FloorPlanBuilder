@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Floor Plan Builder</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+
+  <header id="toolbar">
+    <div class="brand">🏠 <span>Floor Plan Builder</span></div>
+
+    <div class="tools" id="toolbtns">
+      <button class="tool active" data-tool="select" title="Select / move walls and rooms (V)"><span class="ic">➤</span>Select</button>
+      <button class="tool" data-tool="split" title="Draw a new wall to divide a room (W)"><span class="ic">▤</span>Split Room</button>
+      <button class="tool" data-tool="door" title="Add a door on a wall (D)"><span class="ic">🚪</span>Door</button>
+      <button class="tool" data-tool="window" title="Add a window on an outside wall (N)"><span class="ic">▭</span>Window</button>
+      <button class="tool" data-tool="erase" title="Remove a wall / open up two rooms (E)"><span class="ic">✖</span>Remove Wall</button>
+      <button class="tool" data-tool="measure" title="Tape measure (M)"><span class="ic">📏</span>Measure</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="tools">
+      <button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
+      <button id="btnRedo" title="Redo (Ctrl+Y)">↷</button>
+      <button id="btnFit" title="Zoom to fit (F)">⤢ Fit</button>
+      <button id="btnZoomOut" title="Zoom out">−</button>
+      <button id="btnZoomIn" title="Zoom in">+</button>
+    </div>
+
+    <div class="tools">
+      <div class="menuwrap">
+        <button id="btnExport">Export ▾</button>
+        <div class="menu" id="exportMenu">
+          <button data-ex="png">PNG image</button>
+          <button data-ex="svg">SVG (vector)</button>
+          <button data-ex="dxf">DXF (CAD)</button>
+          <button data-ex="json">Project file (.json)</button>
+          <button data-ex="print">Print…</button>
+        </div>
+      </div>
+      <button id="btnImport">Open…</button>
+      <input type="file" id="fileInput" accept=".json" hidden>
+
+      <div class="menuwrap">
+        <button id="btnHelp">Help ▾</button>
+        <div class="menu" id="helpMenu">
+          <button data-help="">How to Use Floor Plan Builder</button>
+          <button data-help="g-start">Start here</button>
+          <button data-help="g-shape">Changing the shape</button>
+          <button data-help="g-push">Making bump-outs</button>
+          <button data-help="g-save">Saving &amp; sharing</button>
+          <button data-help="g-keys">Keyboard shortcuts</button>
+          <button data-help="g-limits">What it cannot do</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="body">
+
+    <aside id="left">
+      <section class="panel">
+        <h2>Auto-Generate</h2>
+
+        <label class="fld">Style
+          <select id="genStyle">
+            <option value="farmhouse" selected>Modern Farmhouse (split bedroom)</option>
+            <option value="ranch">Ranch (bedrooms together)</option>
+            <option value="split">Split Bedroom (mirrored)</option>
+          </select>
+        </label>
+
+        <div class="row2">
+          <label class="fld">Bedrooms
+            <select id="genBeds">
+              <option>1</option><option>2</option><option selected>3</option>
+              <option>4</option><option>5</option><option>6</option>
+            </select>
+          </label>
+          <label class="fld">Bathrooms
+            <select id="genBaths">
+              <option>1</option><option>1.5</option><option selected>2</option>
+              <option>2.5</option><option>3</option><option>3.5</option><option>4</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row2">
+          <label class="fld">Stories
+            <select id="genStories">
+              <option value="1" selected>1 Story</option>
+              <option value="2">2 Story</option>
+            </select>
+          </label>
+          <label class="fld">Square Feet
+            <input type="number" id="genSqft" value="3500" min="400" max="12000" step="50">
+          </label>
+        </div>
+
+        <div class="chips">
+          <label class="chip"><input type="checkbox" id="genOpen" checked> Open concept</label>
+          <label class="chip"><input type="checkbox" id="genPorch" checked> Front porch</label>
+          <label class="chip"><input type="checkbox" id="genPatio" checked> Rear patio</label>
+          <label class="chip"><input type="checkbox" id="genGarage"> Garage</label>
+          <label class="chip"><input type="checkbox" id="genMain" checked> Primary on main</label>
+        </div>
+
+        <button id="btnGenerate" class="primary big">Generate Floor Plan</button>
+        <button id="btnBalance" class="ghost">Re-balance room sizes</button>
+        <p class="hint">Generating replaces the current plan. Undo (Ctrl+Z) brings it back.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Levels</h2>
+        <div id="levelTabs" class="tabs"></div>
+        <div class="row2">
+          <label class="fld">House Width
+            <input type="text" id="lvlW" class="dim">
+          </label>
+          <label class="fld">House Depth
+            <input type="text" id="lvlH" class="dim">
+          </label>
+        </div>
+        <div class="readout" id="areaReadout"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Rooms <span class="count" id="roomCount"></span></h2>
+        <div id="roomList" class="roomlist"></div>
+        <button id="btnAddRoom" class="ghost">+ Add room (splits the biggest)</button>
+      </section>
+    </aside>
+
+    <main id="stage">
+      <canvas id="cv"></canvas>
+      <div id="hud"></div>
+      <div id="toast"></div>
+    </main>
+
+    <aside id="right">
+      <section class="panel" id="propPanel">
+        <h2 id="propTitle">Properties</h2>
+        <div id="propBody"><p class="hint">Click a room, a wall, a door or a window to edit it.<br><br>
+        Drag any wall to move it &mdash; the rooms on both sides resize live.</p></div>
+      </section>
+
+      <section class="panel">
+        <h2>Drawing</h2>
+        <label class="fld">Snap
+          <select id="optSnap">
+            <option value="0">Off (free)</option>
+            <option value="1">1 inch</option>
+            <option value="3" selected>3 inches</option>
+            <option value="6">6 inches</option>
+            <option value="12">1 foot</option>
+          </select>
+        </label>
+        <div class="chips">
+          <label class="chip"><input type="checkbox" id="optGrid" checked> Grid</label>
+          <label class="chip"><input type="checkbox" id="optDims" checked> Dimensions</label>
+          <label class="chip"><input type="checkbox" id="optFix" checked> Furniture</label>
+          <label class="chip"><input type="checkbox" id="optLabels" checked> Room labels</label>
+          <label class="chip"><input type="checkbox" id="optGhost" checked> Level below</label>
+          <label class="chip"><input type="checkbox" id="optGrow" checked> Auto-grow house</label>
+        </div>
+        <p class="hint"><b>Auto-grow</b>: if a room cannot get any smaller, the outside wall moves out instead and the square footage goes up.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Cheat sheet</h2>
+        <ul class="keys">
+          <li><b>Drag a wall</b> &rarr; resize rooms</li>
+          <li><b>Drag outside wall</b> &rarr; resize house</li>
+          <li><b>Drag room onto room</b> &rarr; swap them</li>
+          <li><b>Type exact sizes</b> in Properties</li>
+          <li><kbd>Space</kbd>+drag or middle-drag &rarr; pan</li>
+          <li><kbd>Scroll</kbd> &rarr; zoom &middot; <kbd>F</kbd> &rarr; fit</li>
+          <li><kbd>Alt</kbd> while dragging &rarr; ignore snap</li>
+          <li><kbd>Del</kbd> &rarr; delete selected door/window</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+
+  <footer id="status">
+    <span id="stTool">Select</span>
+    <span id="stCoord">&mdash;</span>
+    <span id="stMsg"></span>
+    <span class="spacer"></span>
+    <span id="stScale"></span>
+  </footer>
+</div>
+
+<script src="js/units.js"></script>
+<script src="js/model.js"></script>
+<script src="js/generate.js"></script>
+<script src="js/fixtures.js"></script>
+<script src="js/render.js"></script>
+<script src="js/exporters.js"></script>
+<script src="js/interact.js"></script>
+<script src="js/help.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
