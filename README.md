@@ -59,6 +59,13 @@ still fit, the outside wall moves out instead by exactly that amount, and the
 square footage goes up. Turn it off in the Drawing panel to make rooms stop at
 their minimums instead.
 
+**It remembers your plan.** The current plan is saved to browser storage as you
+work and restored on your next visit, so closing the tab does not throw the work
+away. That copy is per-browser: it does not follow you to another machine and
+clearing site data erases it, so a project file is still the way to keep
+something. Storage failures (private windows, full quota) are swallowed
+silently — autosave is a convenience, never a guarantee.
+
 **Export.** PNG, SVG, DXF (real CAD — inch units, layered `A-WALL` / `A-DOOR` /
 `A-GLAZ` / `A-ANNO-TEXT`, wall faces broken around every opening), a `.json`
 project file you can reopen later, and Print.

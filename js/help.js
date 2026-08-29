@@ -34,7 +34,7 @@ window.FP = window.FP || {};
     '<li><b>Drag any wall to move it.</b> The rooms on both sides resize as you drag. You cannot break the plan by dragging &mdash; rooms always stay sealed together with no gaps or overlaps.</li>',
     '<li><b>Click anything to edit it.</b> Click a room, a wall, a door or a window and its settings appear in the panel on the right, where you can also type exact sizes.</li>',
     '</ol>',
-    '<p class="callout warn"><b>Before you spend time on a plan:</b> your work lives only in this browser tab. Refreshing or closing the page loses it. To keep a plan, use <b>Export &rarr; Project file (.json)</b>, and <b>Open&hellip;</b> to load it back.</p>',
+    '<p class="callout"><b>Your plan is remembered.</b> It saves itself in this browser as you work, so closing the page and coming back later picks up where you left off. To keep a copy you can move to another computer, send to someone, or come back to after clearing your browser, use <b>Export &rarr; Project file (.json)</b>.</p>',
     '</section>',
 
     '<section id="g-generate">',
@@ -126,9 +126,9 @@ window.FP = window.FP || {};
 
     '<section id="g-save">',
     '<h2>Saving, printing and sharing</h2>',
-    '<p class="callout warn">Nothing is saved automatically. Your plan lives only in this browser tab, and refreshing the page loses it.</p>',
+    '<p class="callout"><b>The plan you are working on saves itself</b> in this browser, so you can close the page and come back to it. That copy lives in this browser on this computer only &mdash; it does not travel with you, and clearing your browsing data erases it. For anything you care about, export a project file as well.</p>',
     '<dl>',
-    '<dt>Keep a plan you can edit later</dt><dd><b>Export &rarr; Project file (.json)</b> saves everything &mdash; rooms, walls, doors, bump-outs. <b>Open&hellip;</b> loads it back exactly as it was. This is the one to use for your own work.</dd>',
+    '<dt>Keep a plan you can edit later</dt><dd><b>Export &rarr; Project file (.json)</b> saves everything &mdash; rooms, walls, doors, bump-outs &mdash; into a file you can store, back up or send to someone. <b>Open&hellip;</b> loads it back exactly as it was. This is the one to use for work you want to keep.</dd>',
     '<dt>Send someone a picture</dt><dd><b>Export &rarr; PNG image</b>.</dd>',
     '<dt>Send a builder or designer a drawing</dt><dd><b>Export &rarr; SVG</b> for a sharp vector drawing that scales to any size, or <b>Export &rarr; DXF</b> to open it in CAD software with real inch measurements and proper layers.</dd>',
     '<dt>Print it</dt><dd><b>Export &rarr; Print</b> opens a printable page. Landscape works best.</dd>',
@@ -168,7 +168,7 @@ window.FP = window.FP || {};
     '<li><b>A bump-out holds one room.</b> A whole wing with several rooms in it is not supported.</li>',
     '<li><b>Stairs are not aligned between floors automatically.</b> The floor below is drawn as a dashed outline so you can line them up by dragging.</li>',
     '<li><b>Furniture is placed automatically</b> and cannot be moved individually. Turn it off in the Drawing panel if it is in the way.</li>',
-    '<li><b>No autosave.</b> Export a project file to keep your work.</li>',
+    '<li><b>The built-in save is per browser.</b> It does not follow you to another computer or survive clearing your browsing data. Export a project file for anything you want to keep.</li>',
     '<li><b>This is a design tool, not a construction document.</b> It does not check building codes, structure, plumbing runs or energy requirements. Have a licensed professional review anything you intend to build.</li>',
     '</ul>',
     '</section>'

@@ -25,15 +25,48 @@
 
   function level() { return st.plan.levels[st.plan.activeLevel]; }
 
+  /* ── autosave ────────────────────────────────────────────────────────
+     A plan lives only in this browser tab, and the people this tool is for
+     will not think to export one before closing it. Keep the current plan in
+     browser storage and put it back on the next visit. It is a convenience,
+     not a promise: storage can be unavailable (private windows, cleared site
+     data), so every failure is swallowed and the project file remains the
+     real way to keep something. */
+  var SAVE_KEY = 'floorplanbuilder.plan.v1';
+  var saveTimer = null;
+
+  function saveNow() {
+    try { localStorage.setItem(SAVE_KEY, I.serialize(st.plan)); } catch (e) { /* ignore */ }
+  }
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 900);
+  }
+  function loadSaved() {
+    try {
+      var raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      var p = JSON.parse(raw);
+      if (!p || !p.levels || !p.levels.length || !p.levels[0].root) return null;
+      return M.reindex(p);
+    } catch (e) {
+      try { localStorage.removeItem(SAVE_KEY); } catch (e2) { /* ignore */ }
+      return null;
+    }
+  }
+
   /* ── boot ────────────────────────────────────────────────────────── */
   function boot() {
-    st.plan = G.generate(readGenOpts());
+    var saved = loadSaved();
+    st.plan = saved || G.generate(readGenOpts());
     fit();
     I.attach(cv, st, invalidate);
     wireUI();
     syncPanels();
     loop();
-    toast('Farmhouse plan ready — drag any wall to reshape it.');
+    window.addEventListener('beforeunload', saveNow);
+    toast(saved ? 'Picked up where you left off.'
+                : 'Farmhouse plan ready — drag any wall to reshape it.');
   }
 
   function loop() {
@@ -151,6 +184,7 @@
     });
 
     renderProps();
+    scheduleSave();
     dirty = true;
   }
 
