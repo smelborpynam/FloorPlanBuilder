@@ -559,8 +559,22 @@ window.FP = window.FP || {};
     if (hi && (st.tool === 'select' || st.tool === 'erase' || st.tool === 'door' || st.tool === 'window')) {
       a.world();
       ctx.save();
+      ctx.lineCap = 'round';
+      // A wall is a slice line. The piece between these two rooms may be part
+      // of a longer cut, and dragging moves all of it — so show the whole cut
+      // faintly behind the piece under the cursor, rather than letting the
+      // highlight promise something smaller than what will actually move.
+      var full = M.wallSpan(lv, hi);
+      if (full.a1 - full.a0 > (hi.a1 - hi.a0) + 1 && st.tool === 'select') {
+        ctx.strokeStyle = 'rgba(31,111,235,.25)';
+        ctx.lineWidth = a.px(3.5);
+        ctx.beginPath();
+        if (hi.dir === 'v') { ctx.moveTo(hi.pos, full.a0); ctx.lineTo(hi.pos, full.a1); }
+        else { ctx.moveTo(full.a0, hi.pos); ctx.lineTo(full.a1, hi.pos); }
+        ctx.stroke();
+      }
       ctx.strokeStyle = st.tool === 'erase' ? '#dc2626' : C.accent;
-      ctx.lineWidth = a.px(3.5); ctx.lineCap = 'round';
+      ctx.lineWidth = a.px(3.5);
       ctx.beginPath();
       if (hi.dir === 'v') { ctx.moveTo(hi.pos, hi.a0); ctx.lineTo(hi.pos, hi.a1); }
       else { ctx.moveTo(hi.a0, hi.pos); ctx.lineTo(hi.a1, hi.pos); }

@@ -163,6 +163,11 @@ outline drives the SVG and DXF exports.
 
 - A bump-out belongs to one room. A whole wing containing several rooms is a
   bigger change than this and is not supported.
+- **A wall is a cut across the plan, not a loose panel.** The visible piece between two
+  rooms is often part of a longer slice, and dragging it moves the whole slice, so every
+  room along that line resizes. Hovering shows the full cut as a pale blue line behind the
+  solid piece you are pointing at. Walls added with **Add Wall** only cut the room they were
+  drawn in, so those move just their own two rooms.
 - A room is built from rectangular cells. L- and T-shapes come from joining cells
   together, not from dragging a corner into an arbitrary polygon.
 - On a two-storey plan the stairs are not automatically aligned between floors.

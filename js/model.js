@@ -336,6 +336,20 @@ window.FP = window.FP || {};
              type: 'ext', side: side, dir: dir,
              pos: pos, a0: a0, a1: a1, room: rm, thick: EXT_W };
   }
+  /* How much of the plan a wall drag really moves.
+     A wall is a slice line, not an independent segment: the piece you see
+     between two rooms can be part of a much longer cut, and dragging it moves
+     the whole cut. This returns that full extent so the UI can show it before
+     the user commits to the drag. */
+  function wallSpan(level, wall) {
+    if (!wall || wall.type !== 'int') return { a0: wall.a0, a1: wall.a1 };
+    var node = lca(level.root, wall.roomA.id, wall.roomB.id);
+    if (!node || node.kind !== 'split' || node.dir !== wall.dir)
+      return { a0: wall.a0, a1: wall.a1 };
+    var R = node.rect;
+    return wall.dir === 'v' ? { a0: R.y, a1: R.y + R.h } : { a0: R.x, a1: R.x + R.w };
+  }
+
   function wallStyle(level, key) { return (level.styles && level.styles[key]) || 'full'; }
   function setWallStyle(level, key, s) {
     level.styles = level.styles || {};
@@ -1099,7 +1113,7 @@ window.FP = window.FP || {};
     walk: walk, leaves: leaves, indexOf: indexOf, pathTo: pathTo, lca: lca,
     targetArea: targetArea, resolveRatios: resolveRatios, rebalance: rebalance,
     minExt: minExt, maxExt: maxExt, computeRects: computeRects, bake: bake,
-    walls: walls, wallStyle: wallStyle, setWallStyle: setWallStyle, clearDims: clearDims,
+    walls: walls, wallSpan: wallSpan, wallStyle: wallStyle, setWallStyle: setWallStyle, clearDims: clearDims,
     BUMP_MIN_D: BUMP_MIN_D, BUMP_MIN_W: BUMP_MIN_W,
     bumps: bumps, bumpList: bumpList, bumpArea: bumpArea, bumpSides: bumpSides,
     roomArea: roomArea, outline: outline, addBump: addBump, removeBump: removeBump,
