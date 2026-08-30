@@ -203,10 +203,10 @@ window.FP = window.FP || {};
   function drawFixtures(a) {
     var lv = a.level; a.world();
     M.leaves(lv.root).forEach(function (l) {
-      // a joined room gets one set of furniture, in its biggest cell
+      // one set of furniture per room, centred on the biggest rectangle that
+      // actually fits inside it — for an L-shape that is not the bounding box
       if (l.group && M.groupAnchor(lv, l.group) !== l) return;
-      var cd = M.clearDims(lv, l);
-      FX.draw(a.ctx, l.type, cd.rect, a.px(1));
+      FX.draw(a.ctx, l.type, M.innerClear(lv, l), a.px(1));
     });
   }
 
@@ -440,6 +440,9 @@ window.FP = window.FP || {};
       // one label per joined room, sitting in its biggest cell
       if (l.group && M.groupAnchor(lv, l.group) !== l) return;
       var cd = M.clearDims(lv, l), R = l.rect;
+      // a joined room's label goes on the largest rectangle inside it, so it
+      // never lands in the notch of an L
+      if (l.group) R = M.innerRect(lv, l);
       var wpx = R.w * s, hpx = R.h * s;
       if (wpx < 34 || hpx < 20) return;
       var cx = R.x + R.w / 2, cy = R.y + R.h / 2;

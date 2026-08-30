@@ -767,6 +767,67 @@ window.FP = window.FP || {};
     return leaf && leaf.group ? groupMembers(level, leaf.group) : (leaf ? [leaf] : []);
   }
 
+  /* The largest rectangle that fits entirely inside a room, joined or not.
+   *
+   * Furniture and the label belong here rather than at the middle of the
+   * room's bounding box: for an L-shape that middle lands in the notch, which
+   * is outside the room, so a bed would hang out of it. The cells are cut into
+   * a grid on their own edges and every rectangle of that grid is tested for
+   * being fully covered; the biggest one wins. The coordinate lists are only
+   * as long as the room has cells, so this stays small.
+   */
+  function innerRect(level, leaf) {
+    var cells = roomCells(level, leaf);
+    if (!cells.length) return { x: 0, y: 0, w: 0, h: 0 };
+    if (cells.length === 1) {
+      var R = cells[0].rect;
+      return { x: R.x, y: R.y, w: R.w, h: R.h };
+    }
+    var xs = [], ys = [];
+    cells.forEach(function (c) {
+      xs.push(c.rect.x, c.rect.x + c.rect.w);
+      ys.push(c.rect.y, c.rect.y + c.rect.h);
+    });
+    function uniqSort(v) {
+      v.sort(function (a, b) { return a - b; });
+      return v.filter(function (x, i) { return i === 0 || x - v[i - 1] > 0.5; });
+    }
+    xs = uniqSort(xs); ys = uniqSort(ys);
+
+    function inside(px, py) {
+      for (var k = 0; k < cells.length; k++) {
+        var q = cells[k].rect;
+        if (px > q.x - 0.01 && px < q.x + q.w + 0.01 &&
+            py > q.y - 0.01 && py < q.y + q.h + 0.01) return true;
+      }
+      return false;
+    }
+    var best = null, i0, i1, j0, j1, i, j, ok;
+    for (i0 = 0; i0 < xs.length - 1; i0++)
+      for (i1 = i0 + 1; i1 < xs.length; i1++)
+        for (j0 = 0; j0 < ys.length - 1; j0++)
+          for (j1 = j0 + 1; j1 < ys.length; j1++) {
+            var w = xs[i1] - xs[i0], h = ys[j1] - ys[j0];
+            if (best && w * h <= best.w * best.h) continue;
+            ok = true;
+            for (i = i0; i < i1 && ok; i++)
+              for (j = j0; j < j1 && ok; j++)
+                if (!inside((xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2)) ok = false;
+            if (ok) best = { x: xs[i0], y: ys[j0], w: w, h: h };
+          }
+    return best || { x: cells[0].rect.x, y: cells[0].rect.y, w: cells[0].rect.w, h: cells[0].rect.h };
+  }
+
+  /* innerRect pulled in to the finished wall faces, ready to draw into */
+  function innerClear(level, leaf) {
+    var r = innerRect(level, leaf);
+    var l = r.x < EPS ? EXT_W : INT_W / 2;
+    var t = r.y < EPS ? EXT_W : INT_W / 2;
+    var rt = Math.abs(r.x + r.w - level.width) < EPS ? EXT_W : INT_W / 2;
+    var b = Math.abs(r.y + r.h - level.height) < EPS ? EXT_W : INT_W / 2;
+    return { x: r.x + l, y: r.y + t, w: Math.max(0, r.w - l - rt), h: Math.max(0, r.h - t - b) };
+  }
+
   /* Do these cells form one connected patch? Walking the adjacency graph
      stops someone joining two rooms at opposite ends of the house. */
   function touching(a, b) {
@@ -1123,6 +1184,7 @@ window.FP = window.FP || {};
     isOutdoor: isOutdoor, outdoorTypes: outdoorTypes, areaBreakdown: areaBreakdown,
     sameGroup: sameGroup, groupMembers: groupMembers, groupArea: groupArea,
     groupAnchor: groupAnchor, roomCells: roomCells, contiguous: contiguous,
+    innerRect: innerRect, innerClear: innerClear,
     joinRooms: joinRooms, ungroupRooms: ungroupRooms, pruneGroups: pruneGroups,
     lockExt: lockExt, setRoomLock: setRoomLock,
     setRoomType: setRoomType,
