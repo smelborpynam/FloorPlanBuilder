@@ -170,18 +170,20 @@
 
     // room list
     var rl = $('roomList'); rl.innerHTML = '';
-    var ls = M.leaves(L.root).slice().sort(function (a, b) {
-      return (b.rect.w * b.rect.h) - (a.rect.w * a.rect.h);
-    });
+    var ls = M.leaves(L.root)
+      .filter(function (l) { return !l.group || M.groupAnchor(L, l.group) === l; })
+      .sort(function (a, b) { return (b.rect.w * b.rect.h) - (a.rect.w * a.rect.h); });
     $('roomCount').textContent = '(' + ls.length + ')';
     ls.forEach(function (l) {
       var cd = M.clearDims(L, l);
+      var selIds = st.sel && st.sel.kind === 'rooms' ? st.sel.ids : (st.sel ? [st.sel.id] : []);
       var row = document.createElement('div');
-      row.className = 'roomrow' + (st.sel && st.sel.id === l.id ? ' sel' : '');
+      row.className = 'roomrow' + (selIds.indexOf(l.id) >= 0 ? ' sel' : '');
       row.innerHTML = '<span class="sw" style="background:' +
         (M.GROUP_COLOR[(M.CATALOG[l.type] || {}).group] || '#eee').replace('#f', '#d') +
         '"></span><span class="nm">' + escapeHTML(l.name) + '</span>' +
-        '<span class="sz">' + U.sizeTxt(cd.w, cd.h) + '</span>';
+        '<span class="sz">' + (l.group ? U.areaTxt(M.groupArea(L, l.group))
+                                       : U.sizeTxt(cd.w, cd.h)) + '</span>';
       row.onclick = function () { st.sel = { kind: 'room', id: l.id }; invalidate(true); };
       rl.appendChild(row);
     });
@@ -206,6 +208,7 @@
         '<br><br>Drag any wall to move it &mdash; the rooms on both sides resize live.</p>';
       return;
     }
+    if (st.sel.kind === 'rooms') return propsRooms(body, title, L);
     if (st.sel.kind === 'room') return propsRoom(body, title, L);
     if (st.sel.kind === 'wall') return propsWall(body, title, L);
     if (st.sel.kind === 'opening') return propsOpening(body, title, L);
@@ -213,11 +216,52 @@
     if (st.sel.kind === 'outdoor') return propsOutdoor(body, title, L);
   }
 
+  /* several rooms shift-selected: offer to make them one room */
+  function propsRooms(body, title, L) {
+    var byId = M.indexOf(L.root).byId;
+    var rooms = st.sel.ids.map(function (id) { return byId[id]; }).filter(Boolean);
+    if (rooms.length < 2) { st.sel = rooms[0] ? { kind: 'room', id: rooms[0].id } : null; return renderProps(); }
+    title.textContent = rooms.length + ' Rooms Selected';
+
+    var touching = M.contiguous(L, rooms.map(function (r) { return r.id; }));
+    var area = rooms.reduce(function (s, r) { return s + M.roomCells(L, r).reduce(function (t, c) { return t + c.rect.w * c.rect.h; }, 0); }, 0);
+    var suggested = rooms.slice().sort(function (a, b) {
+      return (b.rect.w * b.rect.h) - (a.rect.w * a.rect.h);
+    })[0].name;
+
+    body.innerHTML =
+      '<div class="proprow"><span>Selected</span><b>' + rooms.length + ' rooms</b></div>' +
+      '<div class="proprow"><span>Total area</span><b>' + U.areaTxt(area) + '</b></div>' +
+      '<div style="margin:6px 0 10px;font-size:12px;color:' + (touching ? '#15803d' : '#b45309') + '">' +
+        (touching ? '✓ These all touch, so they can become one room.'
+                  : '✕ These do not all touch each other. Shift-click rooms that are next to each other.') +
+      '</div>' +
+      (touching
+        ? '<label class="fld">Name for the joined room<input id="jName" value="' + escapeHTML(suggested) + '"></label>' +
+          '<button class="primary" id="jGo">Join into one room</button>'
+        : '') +
+      '<button class="ghost" id="jClear">Clear selection</button>' +
+      '<p class="hint">Joined rooms keep the shape they cover, so the result does not have to be a rectangle. The walls between them are removed and they share one name.</p>';
+
+    if ($('jGo')) $('jGo').onclick = function () {
+      var nm = ($('jName').value || suggested).trim() || suggested;
+      I.snap(st);
+      var res = M.joinRooms(L, rooms.map(function (r) { return r.id; }), nm.toUpperCase(),
+                            rooms[0].type);
+      if (!res.ok) return toast(res.msg, true);
+      st.sel = { kind: 'room', id: M.groupAnchor(L, res.group).id };
+      invalidate(true);
+      toast('Joined ' + res.cells + ' rooms into ' + nm.toUpperCase() + '.');
+    };
+    $('jClear').onclick = function () { st.sel = null; invalidate(true); };
+  }
+
   function propsRoom(body, title, L) {
     var r = M.indexOf(L.root).byId[st.sel.id];
     if (!r) { st.sel = null; return renderProps(); }
     var cd = M.clearDims(L, r);
-    title.textContent = 'Room';
+    var cells = M.roomCells(L, r), joined = cells.length > 1;
+    title.textContent = joined ? 'Joined Room' : 'Room';
     var opts = Object.keys(M.CATALOG).map(function (k) {
       return '<option value="' + k + '"' + (k === r.type ? ' selected' : '') + '>' +
              M.CATALOG[k].label + '</option>';
@@ -244,8 +288,13 @@
       (M.isOutdoor(r)
         ? '<p class="hint" style="margin:-4px 0 8px">Not counted in the square footage. Drawn open to the air with posts, and the wall to the house becomes an outside wall.</p>'
         : '') +
-      '<div class="proprow"><span>Inside area</span><b>' + U.areaTxt(cd.w * cd.h) + '</b></div>' +
-      '<div class="proprow"><span>Wall-to-wall</span><b>' + U.sizeTxt(r.rect.w, r.rect.h) + '</b></div>' +
+      (joined
+        ? '<div class="proprow"><span>Total area</span><b>' + U.areaTxt(M.groupArea(L, r.group)) + '</b></div>' +
+          '<div class="proprow"><span>Made of</span><b>' + cells.length + ' parts</b></div>' +
+          '<div class="proprow"><span>This part</span><b>' + U.sizeTxt(cd.w, cd.h) + '</b></div>' +
+          '<button class="ghost" id="pUngroup">Split back into separate rooms</button>'
+        : '<div class="proprow"><span>Inside area</span><b>' + U.areaTxt(cd.w * cd.h) + '</b></div>' +
+          '<div class="proprow"><span>Wall-to-wall</span><b>' + U.sizeTxt(r.rect.w, r.rect.h) + '</b></div>') +
       '<div class="divider"></div>' +
       '<div class="row2">' +
         '<button class="ghost" id="pSplitV">Add wall &#9474;</button>' +
@@ -260,6 +309,12 @@
       I.snap(st);
       M.setRoomType(L, r.id, this.value);
       invalidate(true);
+    };
+    if ($('pUngroup')) $('pUngroup').onclick = function () {
+      I.snap(st);
+      var n = M.ungroupRooms(L, r.group);
+      invalidate(true);
+      toast('Split back into ' + n + ' separate rooms.');
     };
     $('pLock').onchange = function () {
       I.snap(st);
@@ -359,7 +414,7 @@
       I.snap(st); b.depth = Math.max(M.BUMP_MIN_D, v); invalidate(true);
     });
     $('bDel').onclick = function () {
-      I.snap(st); M.removeBump(L, b.id); M.pruneOpenings(L); M.pruneBumps(L); st.sel = null; invalidate(true);
+      I.snap(st); M.removeBump(L, b.id); M.pruneOpenings(L); M.pruneBumps(L); M.pruneGroups(L); st.sel = null; invalidate(true);
     };
   }
 
@@ -382,7 +437,7 @@
     var L = level();
     I.snap(st);
     var nr = M.splitRoom(L, r.id, dir, 0.5);
-    M.pruneOpenings(L); M.pruneBumps(L);
+    M.pruneOpenings(L); M.pruneBumps(L); M.pruneGroups(L);
     if (nr) st.sel = { kind: 'room', id: nr.id };
     invalidate(true);
   }
@@ -457,7 +512,7 @@
       var res = M.mergeRooms(L, w);
       if (!res.ok) { M.setWallStyle(L, w.key, 'none');
         toast('Wall opened up so the spaces flow together. To remove a room entirely, select it and use Delete this room.', true); }
-      else { M.pruneOpenings(L); M.pruneBumps(L); toast('Rooms combined.'); }
+      else { M.pruneOpenings(L); M.pruneBumps(L); M.pruneGroups(L); toast('Rooms combined.'); }
       st.sel = null; invalidate(true);
     };
   }

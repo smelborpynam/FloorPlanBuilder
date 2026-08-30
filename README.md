@@ -63,6 +63,9 @@ Three layouts that actually differ:
   share, and doors, windows, bump-outs, porch and patio scale with it. Hold <kbd>Shift</kbd>
   to keep the house's proportions while resizing.
 - **Drag a room onto another** — they swap places.
+- **Join rooms** — click one room, Shift-click others that touch it, then *Join into one room*
+  and name it. The walls between them go and they become a single, possibly L-shaped room.
+  The tree still holds rectangles underneath, so tiling and safe dragging are unaffected.
 - **Type exact sizes** — every room, wall position, door width and porch depth accepts real
   numbers: `12`, `12'`, `12'6"`, `12 6`, `150"`, `12' 6 1/2"`.
 - **Push a room out** — select a room touching an outside wall and pick a side. That part
@@ -160,8 +163,8 @@ outline drives the SVG and DXF exports.
 
 - A bump-out belongs to one room. A whole wing containing several rooms is a
   bigger change than this and is not supported.
-- Rooms are rectangles. L-shaped rooms are made by removing a wall between two
-  rectangles, not by dragging a corner.
+- A room is built from rectangular cells. L- and T-shapes come from joining cells
+  together, not from dragging a corner into an arbitrary polygon.
 - On a two-storey plan the stairs are not automatically aligned between floors.
   The floor below shows as a dashed outline so you can line them up by dragging.
 - Furniture is placed automatically and is not individually movable; toggle it

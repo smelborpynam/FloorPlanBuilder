@@ -343,7 +343,7 @@ window.FP = window.FP || {};
           if (h.wall.type === 'ext') { st.toast('Outside walls cannot be removed — drag them to resize.', true); return cb(); }
           snap(st);
           var res = M.mergeRooms(L, h.wall);
-          if (res.ok) { M.pruneOpenings(L); M.pruneBumps(L); st.toast('Rooms combined.'); }
+          if (res.ok) { M.pruneOpenings(L); M.pruneBumps(L); M.pruneGroups(L); st.toast('Rooms combined.'); }
           else { M.setWallStyle(L, h.wall.key, 'none');
                  L.openings = L.openings.filter(function (x) { return x.wall !== h.wall.key; });
                  st.toast('Wall opened up. To remove a room entirely, select it and use Delete this room.'); }
@@ -383,8 +383,19 @@ window.FP = window.FP || {};
         st.sel = { kind: 'bump', id: h.bump.id };
         down = { mode: 'none', sx0: e.clientX, sy0: e.clientY };
       } else if (h && h.kind === 'room') {
-        down = { mode: 'room', id: h.room.id, sx0: e.clientX, sy0: e.clientY };
-        st.sel = { kind: 'room', id: h.room.id };
+        if (e.shiftKey) {
+          // Shift builds up a set of rooms to join; no dragging in this mode
+          var ids = (st.sel && st.sel.kind === 'rooms') ? st.sel.ids.slice()
+                  : (st.sel && st.sel.kind === 'room') ? [st.sel.id] : [];
+          var at = ids.indexOf(h.room.id);
+          if (at >= 0) ids.splice(at, 1); else ids.push(h.room.id);
+          st.sel = ids.length > 1 ? { kind: 'rooms', ids: ids }
+                 : ids.length === 1 ? { kind: 'room', id: ids[0] } : null;
+          down = { mode: 'none', sx0: e.clientX, sy0: e.clientY };
+        } else {
+          down = { mode: 'room', id: h.room.id, sx0: e.clientX, sy0: e.clientY };
+          st.sel = { kind: 'room', id: h.room.id };
+        }
       } else {
         st.sel = null;
         panning = true; down = { sx: e.clientX, sy: e.clientY, sx0: e.clientX, sy0: e.clientY };
@@ -466,7 +477,7 @@ window.FP = window.FP || {};
         if (st.sel && st.sel.kind === 'opening') {
           snap(st); M.removeOpening(lv(), st.sel.id); st.sel = null; cb(true);
         } else if (st.sel && st.sel.kind === 'bump') {
-          snap(st); M.removeBump(lv(), st.sel.id); M.pruneOpenings(lv()); M.pruneBumps(lv()); st.sel = null; cb(true);
+          snap(st); M.removeBump(lv(), st.sel.id); M.pruneOpenings(lv()); M.pruneBumps(lv()); M.pruneGroups(lv()); st.sel = null; cb(true);
         } else if (st.sel && st.sel.kind === 'room' && st.deleteRoom) {
           var rm = M.indexOf(lv().root).byId[st.sel.id];
           if (rm) st.deleteRoom(rm);          // handles its own undo snapshot

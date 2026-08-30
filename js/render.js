@@ -164,9 +164,17 @@ window.FP = window.FP || {};
   /* ── rooms ───────────────────────────────────────────────────────── */
   function drawRooms(a) {
     var ctx = a.ctx, lv = a.level, st = a.st; a.world();
+    var selIds = {};
+    if (st.sel && st.sel.kind === 'room')
+      M.roomCells(lv, M.indexOf(lv.root).byId[st.sel.id]).forEach(function (c) { selIds[c.id] = 1; });
+    if (st.sel && st.sel.kind === 'rooms')
+      st.sel.ids.forEach(function (id) {
+        M.roomCells(lv, M.indexOf(lv.root).byId[id]).forEach(function (c) { selIds[c.id] = 1; });
+      });
+
     M.leaves(lv.root).forEach(function (l) {
       var R = l.rect;
-      var sel = st.sel && st.sel.kind === 'room' && st.sel.id === l.id;
+      var sel = !!selIds[l.id];
       var hot = st.hover && st.hover.kind === 'room' && st.hover.id === l.id && st.tool === 'select';
       ctx.fillStyle = sel ? C.roomSel
                     : M.isOutdoor(l) ? C.outdoor
@@ -195,6 +203,8 @@ window.FP = window.FP || {};
   function drawFixtures(a) {
     var lv = a.level; a.world();
     M.leaves(lv.root).forEach(function (l) {
+      // a joined room gets one set of furniture, in its biggest cell
+      if (l.group && M.groupAnchor(lv, l.group) !== l) return;
       var cd = M.clearDims(lv, l);
       FX.draw(a.ctx, l.type, cd.rect, a.px(1));
     });
@@ -427,12 +437,16 @@ window.FP = window.FP || {};
   function drawLabels(a) {
     var lv = a.level, s = a.s;
     M.leaves(lv.root).forEach(function (l) {
+      // one label per joined room, sitting in its biggest cell
+      if (l.group && M.groupAnchor(lv, l.group) !== l) return;
       var cd = M.clearDims(lv, l), R = l.rect;
       var wpx = R.w * s, hpx = R.h * s;
       if (wpx < 34 || hpx < 20) return;
       var cx = R.x + R.w / 2, cy = R.y + R.h / 2;
       var name = l.name || (M.CATALOG[l.type] || {}).label || 'ROOM';
-      var sizeStr = '(' + U.sizeTxt(cd.w, cd.h) + ')';
+      // a joined room is not a rectangle, so quote its area rather than W x D
+      var sizeStr = l.group ? '(' + U.areaTxt(M.groupArea(lv, l.group)) + ')'
+                            : '(' + U.sizeTxt(cd.w, cd.h) + ')';
       var nw = textW(a, name, 11, 700);
       var vertical = hpx > wpx * 1.7 && wpx < nw + 14;
       if (vertical) {

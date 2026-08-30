@@ -256,6 +256,8 @@ window.FP = window.FP || {};
     var ls = leaves(level.root), out = [], i, j;
     for (i = 0; i < ls.length; i++) {
       for (j = i + 1; j < ls.length; j++) {
+        // cells joined into one room have no wall between them
+        if (sameGroup(ls[i], ls[j])) continue;
         var A = ls[i].rect, B = ls[j].rect, o;
         // vertical shared edge
         if (Math.abs(A.x + A.w - B.x) < EPS || Math.abs(B.x + B.w - A.x) < EPS) {
@@ -724,6 +726,127 @@ window.FP = window.FP || {};
     return true;
   }
 
+  /* ── joined rooms ─────────────────────────────────────────────────────
+   * A room does not have to be one rectangle. Several touching cells can be
+   * joined into a single room: the tree still holds only rectangles, so tiling
+   * and safe dragging are untouched, but the walls between members stop being
+   * emitted, the members share one name and type, and the space reads as one
+   * L- or T-shaped room with a single label and a single area.
+   */
+  function sameGroup(a, b) { return !!(a && b && a.group && a.group === b.group); }
+  function groupMembers(level, gid) {
+    if (!gid) return [];
+    return leaves(level.root).filter(function (r) { return r.group === gid; });
+  }
+  function groupArea(level, gid) {
+    return groupMembers(level, gid).reduce(function (s, r) { return s + r.rect.w * r.rect.h; }, 0);
+  }
+  /* the biggest cell — where the one label goes, and the only cell that gets
+     furniture, so a joined room does not end up with two beds in it */
+  function groupAnchor(level, gid) {
+    return groupMembers(level, gid).sort(function (a, b) {
+      return (b.rect.w * b.rect.h) - (a.rect.w * a.rect.h);
+    })[0];
+  }
+  /* every cell the room covers, whether or not it is joined */
+  function roomCells(level, leaf) {
+    return leaf && leaf.group ? groupMembers(level, leaf.group) : (leaf ? [leaf] : []);
+  }
+
+  /* Do these cells form one connected patch? Walking the adjacency graph
+     stops someone joining two rooms at opposite ends of the house. */
+  function touching(a, b) {
+    var A = a.rect, B = b.rect;
+    if (!A || !B) return false;
+    if ((Math.abs(A.x + A.w - B.x) < EPS || Math.abs(B.x + B.w - A.x) < EPS) &&
+        Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y) > 12) return true;
+    return (Math.abs(A.y + A.h - B.y) < EPS || Math.abs(B.y + B.h - A.y) < EPS) &&
+           Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x) > 12;
+  }
+
+  /* Measured off the rectangles rather than off the wall list, because cells
+     already joined into a room have no wall between them — deriving it from
+     walls would report a group as disconnected from itself. */
+  function contiguous(level, ids) {
+    if (!ids || ids.length < 2) return true;
+    computeRects(level);
+    var byId = indexOf(level.root).byId;
+    var cells = ids.map(function (i) { return byId[i]; }).filter(Boolean);
+    if (cells.length !== ids.length) return false;
+    var seen = {}, stack = [cells[0]], n = 0;
+    while (stack.length) {
+      var cur = stack.pop();
+      if (seen[cur.id]) continue;
+      seen[cur.id] = 1; n++;
+      cells.forEach(function (c) { if (!seen[c.id] && touching(cur, c)) stack.push(c); });
+    }
+    return n === cells.length;
+  }
+
+  function joinRooms(level, ids, name, type) {
+    computeRects(level);
+    var byId = indexOf(level.root).byId;
+    ids = (ids || []).filter(function (id) { return byId[id] && byId[id].kind === 'room'; });
+    if (ids.length < 2) return { ok: false, msg: 'Pick at least two rooms to join.' };
+    if (!contiguous(level, ids))
+      return { ok: false, msg: 'Those rooms do not all touch each other, so they cannot become one room.' };
+
+    // joining a room that is already joined absorbs its whole group
+    var all = {};
+    ids.forEach(function (id) {
+      roomCells(level, byId[id]).forEach(function (c) { all[c.id] = 1; });
+    });
+    var members = Object.keys(all);
+    var gid = nid('g');
+    var t = type || byId[ids[0]].type;
+    var nm = name || byId[ids[0]].name;
+    members.forEach(function (id) {
+      var r = byId[id];
+      r.group = gid; r.name = nm; r.type = t;
+      delete r.locked; delete r.lockW; delete r.lockH;   // the parts move as one now
+    });
+    pruneOpenings(level);        // walls between members no longer exist
+    return { ok: true, group: gid, cells: members.length };
+  }
+
+  function ungroupRooms(level, gid) {
+    var n = 0;
+    groupMembers(level, gid).forEach(function (r) { delete r.group; n++; });
+    return n;
+  }
+
+  /* Keep groups honest after structural edits. Deleting a room elsewhere can
+     shuffle rectangles enough to pull a joined room apart, so any group that is
+     no longer one connected patch is split into its actual pieces, and a piece
+     left on its own stops being a group at all. */
+  function pruneGroups(level) {
+    computeRects(level);
+    var byGroup = {};
+    leaves(level.root).forEach(function (r) {
+      if (r.group) (byGroup[r.group] = byGroup[r.group] || []).push(r);
+    });
+    Object.keys(byGroup).forEach(function (g) {
+      var remaining = byGroup[g].slice(), comps = [];
+      while (remaining.length) {
+        var stack = [remaining.shift()], comp = [];
+        while (stack.length) {
+          var cur = stack.pop();
+          comp.push(cur);
+          for (var i = remaining.length - 1; i >= 0; i--) {
+            if (touching(cur, remaining[i])) { stack.push(remaining[i]); remaining.splice(i, 1); }
+          }
+        }
+        comps.push(comp);
+      }
+      comps.forEach(function (comp, idx) {
+        if (comp.length < 2) { comp.forEach(function (r) { delete r.group; }); return; }
+        if (idx === 0) return;                     // the first piece keeps the id
+        var ng = nid('g');
+        comp.forEach(function (r) { r.group = ng; });
+      });
+    });
+  }
+
   /* the four grab handles at the corners of the footprint */
   function corners(level) {
     return [
@@ -905,6 +1028,7 @@ window.FP = window.FP || {};
     computeRects(level);
     pruneOpenings(level);
     pruneBumps(level);
+    pruneGroups(level);
     return { ok: true, removed: leaf, takers: takers };
   }
 
@@ -983,6 +1107,9 @@ window.FP = window.FP || {};
     moveWall: moveWall, moveExtWall: moveExtWall, resizeEdge: resizeEdge,
     corners: corners, scaleLevel: scaleLevel, setLeafExtent: setLeafExtent,
     isOutdoor: isOutdoor, outdoorTypes: outdoorTypes, areaBreakdown: areaBreakdown,
+    sameGroup: sameGroup, groupMembers: groupMembers, groupArea: groupArea,
+    groupAnchor: groupAnchor, roomCells: roomCells, contiguous: contiguous,
+    joinRooms: joinRooms, ungroupRooms: ungroupRooms, pruneGroups: pruneGroups,
     lockExt: lockExt, setRoomLock: setRoomLock,
     setRoomType: setRoomType,
     splitRoom: splitRoom, mergeRooms: mergeRooms, deleteRoom: deleteRoom, swapRooms: swapRooms,
