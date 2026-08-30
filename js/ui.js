@@ -558,9 +558,13 @@
         var L = level(), v = U.parse(el.value);
         if (isNaN(v) || v < 120) { syncPanels(); return toast('Enter a size like 48\'', true); }
         I.snap(st);
-        if (id === 'lvlW') L.width = Math.max(v, M.minExt(L.root, 'w'));
-        else L.height = Math.max(v, M.minExt(L.root, 'h'));
-        M.computeRects(L); invalidate(true);
+        // Same rule as dragging the outside wall: the change lands on the far
+        // edge, so the rooms you already sized keep their sizes.
+        var axis = id === 'lvlW' ? 'w' : 'h';
+        var target = Math.max(v, M.minExt(L.root, axis));
+        var delta = target - (axis === 'w' ? L.width : L.height);
+        if (Math.abs(delta) > 0.01) M.resizeEdge(L, axis, 'far', delta);
+        invalidate(true);
       };
     });
 

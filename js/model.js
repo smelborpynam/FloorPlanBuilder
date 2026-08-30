@@ -527,9 +527,9 @@ window.FP = window.FP || {};
      autoGrow: when the room on the far side is already at its minimum, push the
      outside wall out instead — the house simply gets bigger, which is what the
      square-footage readout then reports. */
-  function moveWall(level, wall, newPos, autoGrow) {
+  function moveWall(level, wall, newPos, autoGrow, scale) {
     if (wall.bump) return moveBumpWall(level, wall, newPos);
-    if (wall.type === 'ext') return moveExtWall(level, wall, newPos);
+    if (wall.type === 'ext') return moveExtWall(level, wall, newPos, scale);
     var node = lca(level.root, wall.roomA.id, wall.roomB.id);
     if (!node || node.kind !== 'split' || node.dir !== wall.dir) return false;
 
@@ -579,14 +579,54 @@ window.FP = window.FP || {};
     return true;
   }
 
-  function moveExtWall(level, wall, newPos) {
-    var minW = minExt(level.root, 'w'), minH = minExt(level.root, 'h');
-    var He = EXT_W / 2;
-    if (wall.side === 'right') level.width = Math.max(minW, newPos + He);
-    else if (wall.side === 'front') level.height = Math.max(minH, newPos + He);
-    else if (wall.side === 'left') level.width = Math.max(minW, level.width - (newPos - He));
-    else if (wall.side === 'back') level.height = Math.max(minH, level.height - (newPos - He));
+  /* Resize one edge of the house and absorb the whole change in the rooms
+   * along THAT edge, leaving every other room exactly the size it was.
+   *
+   * Without this, changing level.width simply re-runs the ratios and every
+   * room in the plan scales, which quietly undoes any sizing the user has
+   * already done. Walking down from the root and re-pinning each split so the
+   * side away from the dragged edge keeps its current absolute extent confines
+   * the change to where the wall actually moved.
+   */
+  function resizeEdge(level, axis, side, delta) {
     computeRects(level);
+    var prev = {};
+    walk(level.root, function (n) { prev[n.id] = axis === 'w' ? n.rect.w : n.rect.h; });
+
+    if (axis === 'w') level.width += delta; else level.height += delta;
+    computeRects(level);
+
+    (function rec(n) {
+      if (!n || n.kind !== 'split') return;
+      var along = (n.dir === 'v' && axis === 'w') || (n.dir === 'h' && axis === 'h');
+      if (!along) { rec(n.a); rec(n.b); return; }   // both children span this axis
+      var span = axis === 'w' ? n.rect.w : n.rect.h;
+      if (span <= 0) return;
+      var far = (side === 'far');
+      var keep = prev[(far ? n.a : n.b).id];        // the untouched side holds still
+      n.ratio = U.clamp(far ? keep / span : (span - keep) / span, 0.01, 0.99);
+      computeRects(level);
+      rec(far ? n.b : n.a);                         // follow the edge downwards
+    })(level.root);
+    return level;
+  }
+
+  function moveExtWall(level, wall, newPos, scale) {
+    var He = EXT_W / 2;
+    var axis = (wall.side === 'left' || wall.side === 'right') ? 'w' : 'h';
+    var cur = axis === 'w' ? level.width : level.height;
+    var far = (wall.side === 'right' || wall.side === 'front');
+    var target = far ? newPos + He : cur - (newPos - He);
+    target = Math.max(minExt(level.root, axis), target);
+    var delta = target - cur;
+    if (Math.abs(delta) < 0.01) return true;
+
+    if (scale) {                       // Shift: the old behaviour, scale it all
+      if (axis === 'w') level.width = target; else level.height = target;
+      computeRects(level);
+      return true;
+    }
+    resizeEdge(level, axis, far ? 'far' : 'near', delta);
     return true;
   }
 
@@ -767,7 +807,7 @@ window.FP = window.FP || {};
     bumps: bumps, bumpList: bumpList, bumpArea: bumpArea, bumpSides: bumpSides,
     roomArea: roomArea, outline: outline, addBump: addBump, removeBump: removeBump,
     pruneBumps: pruneBumps,
-    moveWall: moveWall, setLeafExtent: setLeafExtent,
+    moveWall: moveWall, moveExtWall: moveExtWall, resizeEdge: resizeEdge, setLeafExtent: setLeafExtent,
     splitRoom: splitRoom, mergeRooms: mergeRooms, deleteRoom: deleteRoom, swapRooms: swapRooms,
     OPENING_W: OPENING_W, addOpening: addOpening, openingsFor: openingsFor,
     removeOpening: removeOpening, openingGeom: openingGeom, pruneOpenings: pruneOpenings,

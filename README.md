@@ -57,6 +57,8 @@ Three layouts that actually differ:
 
 - **Drag a wall** — the rooms on both sides resize live, with dimensions shown as you go.
 - **Drag an outside wall** — the house gets bigger or smaller; the square footage follows.
+  Only the rooms *along that edge* resize, so pulling a wall in does not disturb sizes you
+  already set elsewhere. Hold <kbd>Shift</kbd> to scale the whole plan proportionally instead.
 - **Drag a room onto another** — they swap places.
 - **Type exact sizes** — every room, wall position, door width and porch depth accepts real
   numbers: `12`, `12'`, `12'6"`, `12 6`, `150"`, `12' 6 1/2"`.

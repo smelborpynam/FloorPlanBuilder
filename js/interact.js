@@ -137,7 +137,7 @@ window.FP = window.FP || {};
 
     /* ---- move ---- */
     cv.addEventListener('mousemove', function (e) {
-      st.altKey = e.altKey;
+      st.altKey = e.altKey; st.shiftKey = e.shiftKey;
       var p = pt(e), L = lv();
       st.cursor = p;
 
@@ -155,7 +155,7 @@ window.FP = window.FP || {};
         var w = down.wall;
         var raw = w.dir === 'v' ? p.x : p.y;
         var np = snapPos(st, L, w.dir, raw + down.grab, w.key);
-        M.moveWall(L, w, np, st.opts.autoGrow);
+        M.moveWall(L, w, np, st.opts.autoGrow, st.shiftKey);
         if (w.type === 'ext' && (w.side === 'left' || w.side === 'back')) {
           // The left/back faces are pinned at the origin, so growing there
           // really moves the far edge. Shift the view by the same amount and
@@ -271,7 +271,7 @@ window.FP = window.FP || {};
     cv.addEventListener('mousedown', function (e) {
       cv.focus();
       var p = pt(e), L = lv();
-      st.altKey = e.altKey;
+      st.altKey = e.altKey; st.shiftKey = e.shiftKey;
       moved = false;
 
       if (e.button === 1 || spaceDown || (e.button === 0 && st.tool === 'pan')) {
