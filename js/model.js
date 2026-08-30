@@ -650,7 +650,7 @@ window.FP = window.FP || {};
     if (wall.type !== 'int') return { ok: false, msg: 'That is an outside wall — drag it to resize the house.' };
     var node = lca(level.root, wall.roomA.id, wall.roomB.id);
     if (!node || node.a.kind !== 'room' || node.b.kind !== 'room')
-      return { ok: false, msg: 'These rooms are not a simple pair. Try "Open" on the wall instead.' };
+      return { ok: false, msg: 'These two rooms cannot be combined into a single room.' };
     var idx = indexOf(level.root), p = idx.parent[node.id];
     var keep = node.a.target >= node.b.target ? node.a : node.b;
     var drop = keep === node.a ? node.b : node.a;
@@ -658,6 +658,41 @@ window.FP = window.FP || {};
     if (!p) level.root = keep; else if (p.a === node) p.a = keep; else p.b = keep;
     computeRects(level);
     return { ok: true, kept: keep };
+  }
+
+  /* Delete a room outright.
+   *
+   * Every point in the footprint has to belong to some room, so a deleted room
+   * cannot leave a hole — its space goes to whatever sits next to it in the
+   * tree, which expands to fill the gap. Unlike mergeRooms this works on ANY
+   * room, because detaching a leaf and promoting its sibling is always a valid
+   * slicing tree; mergeRooms needs the two rooms to be sibling leaves, which
+   * is rarely true in a real plan.
+   */
+  function deleteRoom(level, leafId) {
+    var idx = indexOf(level.root), leaf = idx.byId[leafId];
+    if (!leaf || leaf.kind !== 'room') return { ok: false, msg: 'Select a room first.' };
+    var p = idx.parent[leafId];
+    if (!p) return { ok: false, msg: 'This is the only room on this floor, so it cannot be deleted.' };
+
+    var sib = (p.a === leaf) ? p.b : p.a;
+    var gp = idx.parent[p.id];
+    if (!gp) level.root = sib;
+    else if (gp.a === p) gp.a = sib;
+    else gp.b = sib;
+
+    // hand the freed target area to whatever grew into it, so a later
+    // re-balance keeps the same proportions
+    var takers = leaves(sib);
+    var total = takers.reduce(function (s, r) { return s + r.target; }, 0);
+    takers.forEach(function (r) {
+      r.target += leaf.target * (total > 0 ? r.target / total : 1 / takers.length);
+    });
+
+    computeRects(level);
+    pruneOpenings(level);
+    pruneBumps(level);
+    return { ok: true, removed: leaf, takers: takers };
   }
 
   /* Swap two rooms' identities (drag a room onto another). */
@@ -733,7 +768,7 @@ window.FP = window.FP || {};
     roomArea: roomArea, outline: outline, addBump: addBump, removeBump: removeBump,
     pruneBumps: pruneBumps,
     moveWall: moveWall, setLeafExtent: setLeafExtent,
-    splitRoom: splitRoom, mergeRooms: mergeRooms, swapRooms: swapRooms,
+    splitRoom: splitRoom, mergeRooms: mergeRooms, deleteRoom: deleteRoom, swapRooms: swapRooms,
     OPENING_W: OPENING_W, addOpening: addOpening, openingsFor: openingsFor,
     removeOpening: removeOpening, openingGeom: openingGeom, pruneOpenings: pruneOpenings,
     newLevel: newLevel, levelArea: levelArea, planArea: planArea, clone: clone, reindex: reindex

@@ -49,6 +49,8 @@ Three layouts that actually differ:
   a bedroom pushed out, a dining bay, a nook. The bump-out belongs to its room (no wall
   between them), gets its own windows, and travels with the room when you drag walls.
   Drag its outer wall to change the projection, its side walls to change the width.
+- **Delete a room** removes it and the neighbouring room grows into the space; the app names
+  which room absorbed it. Works on any room, unlike merging.
 - **Split Room** draws a new wall. **Remove Wall** merges two rooms, or opens the wall up
   so the spaces flow together.
 - **Door / Window** tools place openings; drag them along the wall, flip the swing or hinge.

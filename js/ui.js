@@ -233,7 +233,7 @@
         '<button class="ghost" id="pSplitV">Split &#9474;</button>' +
         '<button class="ghost" id="pSplitH">Split &#9472;</button>' +
       '</div>' +
-      '<button class="ghost" id="pMerge">Merge into neighbour</button>' +
+      '<button class="ghost danger" id="pDelete">Delete this room</button>' +
       bumpButtons(L, r) +
       '<p class="hint">Typing a size moves the walls that control this room. With <b>Auto-grow</b> on, the house gets bigger if the room cannot fit.</p>';
 
@@ -257,17 +257,7 @@
     $('pSplitV').onclick = function () { doSplit(r, 'v'); };
     $('pSplitH').onclick = function () { doSplit(r, 'h'); };
     wireBumpButtons(L, r);
-    $('pMerge').onclick = function () {
-      var w = M.walls(L).filter(function (x) {
-        return x.type === 'int' && (x.roomA.id === r.id || x.roomB.id === r.id);
-      }).sort(function (a, b) { return (b.a1 - b.a0) - (a.a1 - a.a0); })[0];
-      if (!w) return toast('No neighbour to merge with.', true);
-      I.snap(st);
-      var res = M.mergeRooms(L, w);
-      if (!res.ok) return toast(res.msg, true);
-      M.pruneOpenings(L); M.pruneBumps(L); st.sel = { kind: 'room', id: res.kept.id };
-      invalidate(true); toast('Rooms combined.');
-    };
+    $('pDelete').onclick = function () { deleteRoom(r); };
   }
 
   /* "Push out" — the control that makes the footprint stop being a rectangle */
@@ -333,6 +323,21 @@
       I.snap(st); M.removeBump(L, b.id); M.pruneOpenings(L); M.pruneBumps(L); st.sel = null; invalidate(true);
     };
   }
+
+  /* Delete a room and say plainly which room grew into the space, because the
+     space has to go somewhere and it is not always the neighbour you expect. */
+  function deleteRoom(r) {
+    var L = level(), name = r.name;
+    I.snap(st);
+    var res = M.deleteRoom(L, r.id);
+    if (!res.ok) return toast(res.msg, true);
+    st.sel = null;
+    invalidate(true);
+    var names = res.takers.slice(0, 2).map(function (t) { return t.name; });
+    var who = names.join(' and ') + (res.takers.length > 2 ? ' and others' : '');
+    toast('Deleted ' + name + ' — ' + who + ' expanded to fill it.');
+  }
+  st.deleteRoom = deleteRoom;
 
   function doSplit(r, dir) {
     var L = level();
@@ -411,7 +416,8 @@
     if ($('wDel')) $('wDel').onclick = function () {
       I.snap(st);
       var res = M.mergeRooms(L, w);
-      if (!res.ok) { M.setWallStyle(L, w.key, 'none'); toast(res.msg + ' Opened it instead.', true); }
+      if (!res.ok) { M.setWallStyle(L, w.key, 'none');
+        toast('Wall opened up so the spaces flow together. To remove a room entirely, select it and use Delete this room.', true); }
       else { M.pruneOpenings(L); M.pruneBumps(L); toast('Rooms combined.'); }
       st.sel = null; invalidate(true);
     };

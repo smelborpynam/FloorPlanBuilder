@@ -307,7 +307,7 @@ window.FP = window.FP || {};
           if (res.ok) { M.pruneOpenings(L); M.pruneBumps(L); st.toast('Rooms combined.'); }
           else { M.setWallStyle(L, h.wall.key, 'none');
                  L.openings = L.openings.filter(function (x) { return x.wall !== h.wall.key; });
-                 st.toast('Wall opened up (rooms now flow together).'); }
+                 st.toast('Wall opened up. To remove a room entirely, select it and use Delete this room.'); }
           st.sel = null; st.setTool('select');
         }
         return cb();
@@ -410,6 +410,9 @@ window.FP = window.FP || {};
           snap(st); M.removeOpening(lv(), st.sel.id); st.sel = null; cb(true);
         } else if (st.sel && st.sel.kind === 'bump') {
           snap(st); M.removeBump(lv(), st.sel.id); M.pruneOpenings(lv()); M.pruneBumps(lv()); st.sel = null; cb(true);
+        } else if (st.sel && st.sel.kind === 'room' && st.deleteRoom) {
+          var rm = M.indexOf(lv().root).byId[st.sel.id];
+          if (rm) st.deleteRoom(rm);          // handles its own undo snapshot
         }
       } else return;
       cb(true);
