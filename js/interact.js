@@ -199,6 +199,21 @@ window.FP = window.FP || {};
       if (down && moved && down.mode === 'measure') {
         st.measure.b = snapPoint(st, p); return cb();
       }
+      if (down && down.mode === 'wallDraw') {
+        var rmd = down.room;
+        var ddx = p.x - down.p0.x, ddy = p.y - down.p0.y;
+        // drag sideways for a wall that runs sideways; with no drag, cut the
+        // room across its longer dimension
+        var horiz = Math.hypot(ddx, ddy) > tol(st, 6)
+          ? Math.abs(ddx) > Math.abs(ddy)
+          : rmd.rect.w < rmd.rect.h;
+        var ddir = horiz ? 'h' : 'v';
+        var dpos = snapPos(st, L, ddir, horiz ? p.y : p.x);
+        st.splitPreview = horiz
+          ? { dir: 'h', pos: dpos, a0: rmd.rect.x, a1: rmd.rect.x + rmd.rect.w, room: rmd }
+          : { dir: 'v', pos: dpos, a0: rmd.rect.y, a1: rmd.rect.y + rmd.rect.h, room: rmd };
+        return cb();
+      }
 
       /* --- hover feedback --- */
       var h = hit(st, p);
@@ -273,16 +288,11 @@ window.FP = window.FP || {};
         return cb();
       }
       if (st.tool === 'split') {
-        if (st.splitPreview) {
-          var sp = st.splitPreview, rm = sp.room;
-          snap(st);
-          var ratio = sp.dir === 'v' ? (sp.pos - rm.rect.x) / rm.rect.w : (sp.pos - rm.rect.y) / rm.rect.h;
-          var nr = M.splitRoom(L, rm.id, sp.dir, U.clamp(ratio, 0.08, 0.92));
-          M.pruneOpenings(L); M.pruneBumps(L);
-          st.sel = nr ? { kind: 'room', id: nr.id } : null;
-          st.toast('Room divided — pick its type on the right.');
-          st.setTool('select');
-        }
+        // Press starts the wall; dragging chooses which way it runs, and a
+        // plain click just drops it. Committed on mouseup.
+        var rm0 = (h && h.kind === 'room') ? h.room : roomAt(L, p);
+        if (rm0) down = { mode: 'wallDraw', room: rm0, p0: p, sx0: e.clientX, sy0: e.clientY };
+        else st.toast('Click inside a room to add a wall across it.', true);
         return cb();
       }
       if (st.tool === 'door' || st.tool === 'window') {
@@ -355,6 +365,18 @@ window.FP = window.FP || {};
       // here would detach that button before the browser delivers its click,
       // which silently swallows the press.
       if (!down) return;
+      if (down.mode === 'wallDraw' && st.splitPreview) {
+        var sp = st.splitPreview, rm = sp.room, L2 = lv();
+        snap(st);
+        var ratio = sp.dir === 'v' ? (sp.pos - rm.rect.x) / rm.rect.w
+                                   : (sp.pos - rm.rect.y) / rm.rect.h;
+        var nr = M.splitRoom(L2, rm.id, sp.dir, U.clamp(ratio, 0.08, 0.92));
+        M.pruneOpenings(L2); M.pruneBumps(L2);
+        st.sel = nr ? { kind: 'room', id: nr.id } : null;
+        st.splitPreview = null;
+        st.toast('Wall added — name the new room on the right.');
+        st.setTool('select');
+      }
       if (down && down.mode === 'room' && moved && st.swapTarget) {
         snap(st);
         M.swapRooms(lv(), down.id, st.swapTarget.id);

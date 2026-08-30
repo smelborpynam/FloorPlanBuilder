@@ -91,7 +91,7 @@
   }
 
   function paintStatus() {
-    var names = { select: 'Select', split: 'Split Room', door: 'Add Door',
+    var names = { select: 'Select', split: 'Add Wall', door: 'Add Door',
                   window: 'Add Window', erase: 'Remove Wall', measure: 'Measure' };
     $('stTool').textContent = names[st.tool] || st.tool;
     $('stCoord').textContent = 'x ' + U.ft(st.cursor.x) + '   y ' + U.ft(st.cursor.y);
@@ -230,8 +230,8 @@
       '<div class="proprow"><span>Wall-to-wall</span><b>' + U.sizeTxt(r.rect.w, r.rect.h) + '</b></div>' +
       '<div class="divider"></div>' +
       '<div class="row2">' +
-        '<button class="ghost" id="pSplitV">Split &#9474;</button>' +
-        '<button class="ghost" id="pSplitH">Split &#9472;</button>' +
+        '<button class="ghost" id="pSplitV">Add wall &#9474;</button>' +
+        '<button class="ghost" id="pSplitH">Add wall &#9472;</button>' +
       '</div>' +
       '<button class="ghost danger" id="pDelete">Delete this room</button>' +
       bumpButtons(L, r) +

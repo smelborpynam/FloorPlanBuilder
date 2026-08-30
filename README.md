@@ -51,7 +51,8 @@ Three layouts that actually differ:
   Drag its outer wall to change the projection, its side walls to change the width.
 - **Delete a room** removes it and the neighbouring room grows into the space; the app names
   which room absorbed it. Works on any room, unlike merging.
-- **Split Room** draws a new wall. **Remove Wall** merges two rooms, or opens the wall up
+- **Add Wall** draws a new wall across a room; drag to choose which way it runs.
+  **Remove Wall** merges two rooms, or opens the wall up
   so the spaces flow together.
 - **Door / Window** tools place openings; drag them along the wall, flip the swing or hinge.
 - Undo/redo, snap (off / 1" / 3" / 6" / 1'), grid, pan, zoom, tape measure.
