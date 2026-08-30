@@ -13,6 +13,22 @@ node server.js
 Then open <http://localhost:5173>. (Opening `index.html` directly by
 double-clicking also works — the server just avoids browser file:// quirks.)
 
+## Deploying
+
+The site is hosted on Netlify, deployed from this repository's `main` branch:
+every push publishes automatically. There is no build step — `netlify.toml`
+pins the publish directory to the repository root, where `index.html` lives, so
+the setting cannot drift out of the Netlify UI.
+
+To deploy anywhere else, upload these files and serve them statically:
+`index.html`, `css/` and `js/`. Nothing else is required at runtime — `server.js`
+is only for working locally.
+
+Note that publishing from the repository root also serves `README.md` and
+`server.js` at the public URL. Neither contains anything sensitive, and all of
+`js/` is public by necessity in any browser app, but move the app into its own
+publish folder if you would rather they were not reachable.
+
 ## Built-in help
 
 **Help ▾** in the toolbar opens a full How-to-Use guide inside the app, with

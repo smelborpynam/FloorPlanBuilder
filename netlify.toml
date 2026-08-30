@@ -1,0 +1,5 @@
+# Deploy settings live with the code so they cannot drift apart from whatever
+# is set in the Netlify UI. This is a plain static site: there is nothing to
+# build, and index.html sits at the repository root.
+[build]
+  publish = "."
