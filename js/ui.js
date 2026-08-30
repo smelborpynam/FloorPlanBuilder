@@ -145,18 +145,21 @@
     $('lvlW').value = U.ft(L.width);
     $('lvlH').value = U.ft(L.height);
 
-    var garage = 0;
+    var heated = 0, garage = 0, outdoor = 0;
     st.plan.levels.forEach(function (l) {
-      M.computeRects(l);
-      M.leaves(l.root).forEach(function (r) { if (r.type === 'garage') garage += r.rect.w * r.rect.h; });
+      var b = M.areaBreakdown(l);
+      heated += b.heated; garage += b.garage; outdoor += b.outdoor;
     });
     var per = st.plan.levels.map(function (l) {
-      return l.name + ': <b>' + U.sqft(M.levelArea(l)).toLocaleString() + '</b>';
+      return l.name + ': <b>' + U.sqft(M.areaBreakdown(l).heated).toLocaleString() + '</b>';
     }).join(' &middot; ');
+    var aside = [];
+    if (garage) aside.push(U.sqft(garage).toLocaleString() + ' sq ft garage');
+    if (outdoor) aside.push(U.sqft(outdoor).toLocaleString() + ' sq ft outdoor');
     $('areaReadout').innerHTML =
-      '<div class="big">' + U.sqft(M.planArea(st.plan) - garage).toLocaleString() + ' sq ft</div>' +
+      '<div class="big">' + U.sqft(heated).toLocaleString() + ' sq ft</div>' +
       '<div style="font-size:10.5px;color:#8b9099;margin-bottom:4px">heated area' +
-        (garage ? ' &middot; plus ' + U.sqft(garage).toLocaleString() + ' sq ft garage' : '') + '</div>' +
+        (aside.length ? ' &middot; plus ' + aside.join(' and ') : '') + '</div>' +
       '<div>' + per + '</div>' +
       '<div style="margin-top:4px">Footprint <b>' + U.ft(L.width) + ' &times; ' + U.ft(L.height) + '</b>' +
       (M.bumpList(L).length ? (function () {
@@ -226,6 +229,21 @@
         '<label class="fld">Width<input class="dim" id="pW" value="' + escapeHTML(U.ft(cd.w)) + '"></label>' +
         '<label class="fld">Depth<input class="dim" id="pH" value="' + escapeHTML(U.ft(cd.h)) + '"></label>' +
       '</div>' +
+      '<div class="chips" style="margin-top:2px">' +
+        '<label class="chip"><input type="checkbox" id="pLock"' + (r.locked ? ' checked' : '') +
+        '> Lock this size</label></div>' +
+      (r.locked
+        ? '<p class="hint" style="margin:-6px 0 8px">Held at ' + U.sizeTxt(cd.w, cd.h) +
+          '. Moving other walls will work around it. Typing a size above still changes it.</p>'
+        : '') +
+      '<div class="fld" style="margin-bottom:6px">Counts as</div>' +
+      '<div class="seg" id="pIndoor">' +
+        '<button data-out="0" class="' + (M.isOutdoor(r) ? '' : 'on') + '">Heated space</button>' +
+        '<button data-out="1" class="' + (M.isOutdoor(r) ? 'on' : '') + '">Outdoor</button>' +
+      '</div>' +
+      (M.isOutdoor(r)
+        ? '<p class="hint" style="margin:-4px 0 8px">Not counted in the square footage. Drawn open to the air with posts, and the wall to the house becomes an outside wall.</p>'
+        : '') +
       '<div class="proprow"><span>Inside area</span><b>' + U.areaTxt(cd.w * cd.h) + '</b></div>' +
       '<div class="proprow"><span>Wall-to-wall</span><b>' + U.sizeTxt(r.rect.w, r.rect.h) + '</b></div>' +
       '<div class="divider"></div>' +
@@ -240,14 +258,35 @@
     $('pName').onchange = function () { I.snap(st); r.name = this.value || r.name; invalidate(true); };
     $('pType').onchange = function () {
       I.snap(st);
-      var wasDefault = r.name === (M.CATALOG[r.type] || {}).label;
-      r.type = this.value;
-      var c = M.CATALOG[r.type];
-      if (wasDefault) r.name = c.label;
-      r.minW = Math.min(r.minW, c.min); r.minH = Math.min(r.minH, c.min);
-      r.target = c.area;
+      M.setRoomType(L, r.id, this.value);
       invalidate(true);
     };
+    $('pLock').onchange = function () {
+      I.snap(st);
+      M.setRoomLock(L, r.id, this.checked);
+      invalidate(true);
+      toast(this.checked
+        ? r.name + ' locked at ' + U.sizeTxt(cd.w, cd.h) + '.'
+        : r.name + ' unlocked.');
+    };
+    Array.prototype.forEach.call($('pIndoor').children, function (b) {
+      b.onclick = function () {
+        var toOutdoor = b.dataset.out === '1';
+        if (toOutdoor === M.isOutdoor(r)) return;
+        I.snap(st);
+        // going outside, pick the type that suits where the room sits
+        var type = 'room';
+        if (toOutdoor) {
+          var lv = L, front = Math.abs(r.rect.y + r.rect.h - lv.height) < 0.6;
+          type = front ? 'porch' : 'patio';
+        }
+        M.setRoomType(L, r.id, type);
+        invalidate(true);
+        toast(toOutdoor
+          ? r.name + ' is now outdoor space and no longer counts toward the square footage.'
+          : r.name + ' now counts as heated space.');
+      };
+    });
     bindDim($('pW'), cd.w, function (val) {
       I.snap(st); M.setLeafExtent(L, r.id, 'w', val + (r.rect.w - cd.w), st.opts.autoGrow); invalidate(true);
     });

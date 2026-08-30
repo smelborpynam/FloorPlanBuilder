@@ -48,8 +48,10 @@ window.FP = window.FP || {};
     loft:         { label: 'LOFT',            area: 200, min: 120, max: INF, group: 'living' },
     stairs:       { label: 'STAIRS',          area: 52,  min: 40,  max: 192, group: 'circ' },
     garage:       { label: 'GARAGE',          area: 460, min: 216, max: INF, group: 'service' },
-    porch:        { label: 'PORCH',           area: 190, min: 60,  max: INF, group: 'outdoor' },
+    porch:        { label: 'COVERED PORCH',   area: 190, min: 60,  max: INF, group: 'outdoor' },
     patio:        { label: 'PATIO',           area: 300, min: 60,  max: INF, group: 'outdoor' },
+    deck:         { label: 'DECK',            area: 260, min: 60,  max: INF, group: 'outdoor' },
+    screened:     { label: 'SCREENED PORCH',  area: 240, min: 72,  max: INF, group: 'outdoor' },
     room:         { label: 'NEW ROOM',        area: 120, min: 60,  max: INF, group: 'living' }
   };
 
@@ -142,10 +144,37 @@ window.FP = window.FP || {};
   }
   function minExt(n, axis) {              // axis: 'w' | 'h'
     if (!n) return 0;
-    if (n.kind === 'room') return axis === 'w' ? n.minW : n.minH;
+    if (n.kind === 'room') {
+      if (n.locked) return (axis === 'w' ? n.lockW : n.lockH) || (axis === 'w' ? n.minW : n.minH);
+      return axis === 'w' ? n.minW : n.minH;
+    }
     var along = (n.dir === 'v' && axis === 'w') || (n.dir === 'h' && axis === 'h');
     var a = minExt(n.a, axis), b = minExt(n.b, axis);
     return along ? a + b : Math.max(a, b);
+  }
+
+  /* A locked room reports the same value as its minimum AND its maximum, which
+     pins it: it cannot be squeezed or stretched by anything happening around
+     it. Unlike the catalog maximums this is enforced during normal editing,
+     not just while generating. Infinity means "no lock in here". */
+  function lockExt(n, axis) {
+    if (!n) return INF;
+    if (n.kind === 'room')
+      return n.locked ? ((axis === 'w' ? n.lockW : n.lockH) || INF) : INF;
+    var along = (n.dir === 'v' && axis === 'w') || (n.dir === 'h' && axis === 'h');
+    var a = lockExt(n.a, axis), b = lockExt(n.b, axis);
+    return along ? a + b : Math.min(a, b);
+  }
+
+  function setRoomLock(level, roomId, on) {
+    computeRects(level);
+    var r = indexOf(level.root).byId[roomId];
+    if (!r || r.kind !== 'room') return false;
+    r.locked = !!on;
+    if (on) { r.lockW = r.rect.w; r.lockH = r.rect.h; }
+    else { delete r.lockW; delete r.lockH; }
+    computeRects(level);
+    return true;
   }
   function maxExt(n, axis) {
     if (!n) return INF;
@@ -162,7 +191,11 @@ window.FP = window.FP || {};
     var ma = minExt(node.a, axis), mb = minExt(node.b, axis);
     if (!useMax) {
       if (ma + mb >= span) return span * (ma / (ma + mb || 1));
-      return U.clamp(span * node.ratio, ma, span - mb);
+      // locked rooms hold their size against whatever is happening around them
+      var la = lockExt(node.a, axis), lb = lockExt(node.b, axis);
+      var llo = Math.max(ma, span - lb), lhi = Math.min(la, span - mb);
+      if (llo > lhi) return U.clamp(span * node.ratio, ma, span - mb);
+      return U.clamp(span * node.ratio, llo, lhi);
     }
     var xa = maxExt(node.a, axis), xb = maxExt(node.b, axis);
     if (ma + mb >= span) return span * (ma / (ma + mb || 1));   // too tight for mins
@@ -215,6 +248,9 @@ window.FP = window.FP || {};
     return e - s > 12 ? [s, e] : null;   // ignore slivers under 1'
   }
   function ikey(a, b) { return 'iw:' + (a < b ? a + '~' + b : b + '~' + a); }
+  /* a wall separating heated space from an outdoor room is a real outside
+     wall, so it is drawn at exterior thickness */
+  function envelope(a, b) { return isOutdoor(a) !== isOutdoor(b); }
 
   function walls(level) {
     var ls = leaves(level.root), out = [], i, j;
@@ -226,14 +262,16 @@ window.FP = window.FP || {};
           o = ov(A.y, A.y + A.h, B.y, B.y + B.h);
           if (o) out.push({ key: ikey(ls[i].id, ls[j].id), type: 'int', dir: 'v',
                             pos: Math.abs(A.x + A.w - B.x) < EPS ? A.x + A.w : B.x + B.w,
-                            a0: o[0], a1: o[1], roomA: ls[i], roomB: ls[j], thick: INT_W });
+                            a0: o[0], a1: o[1], roomA: ls[i], roomB: ls[j],
+                            thick: envelope(ls[i], ls[j]) ? EXT_W : INT_W });
         }
         // horizontal shared edge
         if (Math.abs(A.y + A.h - B.y) < EPS || Math.abs(B.y + B.h - A.y) < EPS) {
           o = ov(A.x, A.x + A.w, B.x, B.x + B.w);
           if (o) out.push({ key: ikey(ls[i].id, ls[j].id), type: 'int', dir: 'h',
                             pos: Math.abs(A.y + A.h - B.y) < EPS ? A.y + A.h : B.y + B.h,
-                            a0: o[0], a1: o[1], roomA: ls[i], roomB: ls[j], thick: INT_W });
+                            a0: o[0], a1: o[1], roomA: ls[i], roomB: ls[j],
+                            thick: envelope(ls[i], ls[j]) ? EXT_W : INT_W });
         }
       }
     }
@@ -611,6 +649,81 @@ window.FP = window.FP || {};
     return level;
   }
 
+  /* ── heated vs unheated space ─────────────────────────────────────────
+     A room inside the footprint can be outdoor: a porch or patio tucked under
+     the same roof. It still occupies the rectangle, but it is not heated
+     space, so it comes out of the square footage and the building's insulated
+     envelope runs around it rather than through it. */
+  function isOutdoor(r) {
+    return !!r && (CATALOG[r.type] || {}).group === 'outdoor';
+  }
+  function outdoorTypes() {
+    return Object.keys(CATALOG).filter(function (k) { return CATALOG[k].group === 'outdoor'; });
+  }
+
+  /* gross floor split into what is heated and what is not */
+  function areaBreakdown(level) {
+    computeRects(level);
+    var extra = {};
+    bumpList(level).forEach(function (g) {
+      extra[g.room.id] = (extra[g.room.id] || 0) + g.w * g.h;
+    });
+    var garage = 0, outdoor = 0;
+    leaves(level.root).forEach(function (r) {
+      var a = r.rect.w * r.rect.h + (extra[r.id] || 0);
+      if (r.type === 'garage') garage += a;
+      else if (isOutdoor(r)) outdoor += a;
+    });
+    var gross = levelArea(level);
+    return { gross: gross, garage: garage, outdoor: outdoor,
+             heated: gross - garage - outdoor };
+  }
+
+  /* Change a room's type, handling what that implies. Crossing the
+     indoor/outdoor line moves the thermal envelope, so any windows on what
+     was an outside wall no longer belong to a wall that exists. */
+  function setRoomType(level, roomId, type) {
+    var r = indexOf(level.root).byId[roomId];
+    if (!r) return false;
+    var c = CATALOG[type] || CATALOG.room;
+    var wasOutdoor = isOutdoor(r);
+    var wasDefaultName = r.name === (CATALOG[r.type] || {}).label;
+
+    r.type = type;
+    if (wasDefaultName) r.name = c.label;
+    r.minW = Math.min(r.minW, c.min);
+    r.minH = Math.min(r.minH, c.min);
+    r.target = c.area;
+
+    if (isOutdoor(r) !== wasOutdoor) {
+      var drop = {};
+      walls(level).forEach(function (w) {
+        if (w.type === 'ext' && w.room === r) drop[w.key] = 1;
+      });
+      level.openings = level.openings.filter(function (o) { return !drop[o.wall]; });
+
+      // The envelope now runs between this room and the house, so a wall that
+      // was opened up for an open-concept layout has to come back — otherwise
+      // the living space is left flowing straight into the weather.
+      var env = walls(level).filter(function (w) {
+        return w.type === 'int' && (w.roomA === r || w.roomB === r) &&
+               isOutdoor(w.roomA) !== isOutdoor(w.roomB);
+      });
+      env.forEach(function (w) { setWallStyle(level, w.key, 'full'); });
+
+      // ...and then there has to be a way out onto it
+      if (isOutdoor(r) && env.length &&
+          !env.some(function (w) { return openingsFor(level, w.key).length; })) {
+        var best = env.slice().sort(function (p, q) { return (q.a1 - q.a0) - (p.a1 - p.a0); })[0];
+        if (best.a1 - best.a0 > 48) {
+          var o = addOpening(level, best, (best.a1 - best.a0) / 2, 'slider');
+          o.w = Math.min(72, (best.a1 - best.a0) - 12);
+        }
+      }
+    }
+    return true;
+  }
+
   /* the four grab handles at the corners of the footprint */
   function corners(level) {
     return [
@@ -677,7 +790,22 @@ window.FP = window.FP || {};
 
   /* Set one room's exact width or height by adjusting the ancestor split that
      controls that axis. This is the "type a real number" CAD path. */
+  /* Typing an exact size is a deliberate instruction, so it overrides a lock
+     and then re-locks the room at whatever it ended up. */
   function setLeafExtent(level, leafId, axis, target, autoGrow) {
+    var lf = indexOf(level.root).byId[leafId];
+    if (!lf || !lf.locked) return setLeafExtentRaw(level, leafId, axis, target, autoGrow);
+    lf.locked = false;
+    delete lf.lockW; delete lf.lockH;        // stale values would re-pin it
+    var ok = setLeafExtentRaw(level, leafId, axis, target, autoGrow);
+    computeRects(level);
+    lf.lockW = lf.rect.w; lf.lockH = lf.rect.h;   // record before re-locking
+    lf.locked = true;
+    computeRects(level);
+    return ok;
+  }
+
+  function setLeafExtentRaw(level, leafId, axis, target, autoGrow) {
     var path = pathTo(level.root, leafId);
     if (!path) return false;
     var dir = axis === 'w' ? 'v' : 'h';
@@ -854,6 +982,9 @@ window.FP = window.FP || {};
     pruneBumps: pruneBumps,
     moveWall: moveWall, moveExtWall: moveExtWall, resizeEdge: resizeEdge,
     corners: corners, scaleLevel: scaleLevel, setLeafExtent: setLeafExtent,
+    isOutdoor: isOutdoor, outdoorTypes: outdoorTypes, areaBreakdown: areaBreakdown,
+    lockExt: lockExt, setRoomLock: setRoomLock,
+    setRoomType: setRoomType,
     splitRoom: splitRoom, mergeRooms: mergeRooms, deleteRoom: deleteRoom, swapRooms: swapRooms,
     OPENING_W: OPENING_W, addOpening: addOpening, openingsFor: openingsFor,
     removeOpening: removeOpening, openingGeom: openingGeom, pruneOpenings: pruneOpenings,

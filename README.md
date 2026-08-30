@@ -70,6 +70,13 @@ Three layouts that actually differ:
   a bedroom pushed out, a dining bay, a nook. The bump-out belongs to its room (no wall
   between them), gets its own windows, and travels with the room when you drag walls.
   Drag its outer wall to change the projection, its side walls to change the width.
+- **Lock a room's size** — tick *Lock this size* and the room holds its dimensions against
+  everything: neighbouring wall drags, house resizes, corner scaling. The rest of the plan
+  works around it. Typing an exact size still overrides the lock and re-locks at the new value.
+- **Turn a room into outdoor space** — set *Counts as* to *Outdoor* and the room stops counting
+  toward the heated square footage. It is drawn open to the air with posts, the wall to the
+  house becomes an insulated exterior wall, and a door onto it is added. Porch, screened porch,
+  patio and deck types are available.
 - **Delete a room** removes it and the neighbouring room grows into the space; the app names
   which room absorbed it. Works on any room, unlike merging.
 - **Add Wall** draws a new wall across a room; drag to choose which way it runs.

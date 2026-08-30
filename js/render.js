@@ -91,6 +91,7 @@ window.FP = window.FP || {};
     drawRooms(api);
     if (st.opts.fixtures) drawFixtures(api);
     drawWalls(api);
+    drawOutdoorEdges(api);
     drawOpenings(api);
     if (st.opts.labels) drawLabels(api);
     if (st.opts.dims) drawDims(api);
@@ -167,7 +168,9 @@ window.FP = window.FP || {};
       var R = l.rect;
       var sel = st.sel && st.sel.kind === 'room' && st.sel.id === l.id;
       var hot = st.hover && st.hover.kind === 'room' && st.hover.id === l.id && st.tool === 'select';
-      ctx.fillStyle = sel ? C.roomSel : (hot && st.dragTarget ? C.roomHot : C.room);
+      ctx.fillStyle = sel ? C.roomSel
+                    : M.isOutdoor(l) ? C.outdoor
+                    : (hot && st.dragTarget ? C.roomHot : C.room);
       ctx.fillRect(R.x, R.y, R.w, R.h);
     });
     // bump-out floors: part of their host room, so no wall between them
@@ -230,6 +233,56 @@ window.FP = window.FP || {};
         var x0 = U.clamp(w.a0 - h, E, lv.width - E), x1 = U.clamp(w.a1 + h, E, lv.width - E);
         ctx.fillRect(x0, w.pos - h, x1 - x0, t);
       }
+    });
+  }
+
+  /* An outdoor room sits inside the footprint but outside the heated shell,
+     so the solid exterior wall is cut away where it faces the open air and
+     replaced with posts — the way a tucked-in porch is actually built. The
+     insulated wall between it and the house is already drawn at exterior
+     thickness by the wall pass. */
+  function drawOutdoorEdges(a) {
+    var ctx = a.ctx, lv = a.level, E = M.EXT_W;
+    var rooms = M.leaves(lv.root).filter(M.isOutdoor);
+    if (!rooms.length) return;
+    a.world();
+    rooms.forEach(function (l) {
+      var R = l.rect, bands = [];
+      if (R.x < 0.6) bands.push({ x: R.x, y: R.y, w: E, h: R.h, dir: 'v' });
+      if (Math.abs(R.x + R.w - lv.width) < 0.6)
+        bands.push({ x: R.x + R.w - E, y: R.y, w: E, h: R.h, dir: 'v' });
+      if (R.y < 0.6) bands.push({ x: R.x, y: R.y, w: R.w, h: E, dir: 'h' });
+      if (Math.abs(R.y + R.h - lv.height) < 0.6)
+        bands.push({ x: R.x, y: R.y + R.h - E, w: R.w, h: E, dir: 'h' });
+
+      bands.forEach(function (b) {
+        ctx.fillStyle = C.outdoor;                  // cut the shell open
+        ctx.fillRect(b.x - 0.3, b.y - 0.3, b.w + 0.6, b.h + 0.6);
+
+        ctx.save();                                 // roof edge above
+        ctx.strokeStyle = C.outdoorLine;
+        ctx.lineWidth = a.px(1.4);
+        ctx.setLineDash([a.px(8), a.px(5)]);
+        ctx.beginPath();
+        if (b.dir === 'v') {
+          var x = (R.x < 0.6) ? b.x + E / 2 : b.x + E / 2;
+          ctx.moveTo(x, b.y); ctx.lineTo(x, b.y + b.h);
+        } else {
+          var y = b.y + E / 2;
+          ctx.moveTo(b.x, y); ctx.lineTo(b.x + b.w, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        var run = b.dir === 'v' ? b.h : b.w;        // posts along the opening
+        var n = Math.max(2, Math.round(run / 96));
+        ctx.fillStyle = C.wall;
+        for (var i = 0; i <= n; i++) {
+          var t = i / n, s = 8;
+          if (b.dir === 'v') ctx.fillRect(b.x + (E - s) / 2, U.clamp(b.y + b.h * t - s / 2, b.y, b.y + b.h - s), s, s);
+          else ctx.fillRect(U.clamp(b.x + b.w * t - s / 2, b.x, b.x + b.w - s), b.y + (E - s) / 2, s, s);
+        }
+      });
     });
   }
 
@@ -394,6 +447,9 @@ window.FP = window.FP || {};
       var two = hpx > 46 && wpx > textW(a, sizeStr, 10, 500) + 10;
       text(a, name, cx, two ? cy - 7 : cy, { size: 11, weight: 700 });
       if (two) text(a, sizeStr, cx, cy + 7, { size: 10, weight: 500, color: C.text2 });
+      // a locked room says so on the drawing, not just in the panel
+      if (l.locked && wpx > 34 && hpx > 30)
+        text(a, '🔒', R.x + R.w - a.px(11), R.y + a.px(11), { size: 10, halo: false });
     });
 
     // outdoor labels
@@ -406,11 +462,10 @@ window.FP = window.FP || {};
 
     // title block, bottom-right of the footprint
     var b = bounds(lv);
-    var gar = 0;
-    M.leaves(lv.root).forEach(function (l) { if (l.type === 'garage') gar += l.rect.w * l.rect.h; });
-    var gross = M.levelArea(lv);
-    var sub = 'Approx. ' + U.sqft(gross - gar).toLocaleString() + ' SQ FT' +
-              (gar ? ' + ' + U.sqft(gar).toLocaleString() + ' SQ FT GARAGE' : '');
+    var ab = M.areaBreakdown(lv);
+    var sub = 'Approx. ' + U.sqft(ab.heated).toLocaleString() + ' SQ FT' +
+              (ab.garage ? ' + ' + U.sqft(ab.garage).toLocaleString() + ' SQ FT GARAGE' : '') +
+              (ab.outdoor ? ' + ' + U.sqft(ab.outdoor).toLocaleString() + ' SQ FT OUTDOOR' : '');
     var hb = houseBounds(lv), over = M.bumpList(lv).length ? '  OVERALL' : '';
     text(a, U.ft(hb.x1 - hb.x0) + '  x  ' + U.ft(hb.y1 - hb.y0) + over, b.x1, b.y1 + 74,
          { size: 13, weight: 700, align: 'right' });
