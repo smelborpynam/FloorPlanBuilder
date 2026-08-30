@@ -95,6 +95,7 @@ window.FP = window.FP || {};
     if (st.opts.labels) drawLabels(api);
     if (st.opts.dims) drawDims(api);
     drawOverlay(api);
+    drawCorners(api);
   }
 
   /* ── grid ────────────────────────────────────────────────────────── */
@@ -535,6 +536,35 @@ window.FP = window.FP || {};
       var d = Math.hypot(m.b.x - m.a.x, m.b.y - m.a.y);
       text(a, U.ft(d), (m.a.x + m.b.x) / 2, (m.a.y + m.b.y) / 2 - 12,
            { size: 12, weight: 700, color: '#92400e' });
+    }
+  }
+
+  /* Corner grab handles. Drawn last so they sit above the walls, and only with
+     the Select tool, where they can actually be used. */
+  function drawCorners(a) {
+    var st = a.st;
+    if (st.exporting || st.tool !== 'select') return;
+    var ctx = a.ctx, lv = a.level;
+    a.world();
+    var s = a.px(5);
+    M.corners(lv).forEach(function (c) {
+      var hot = (st.hover && st.hover.kind === 'corner' && st.hover.corner.id === c.id) ||
+                st.dragCorner === c.id;
+      ctx.beginPath();
+      ctx.rect(c.x - s, c.y - s, s * 2, s * 2);
+      ctx.fillStyle = hot ? C.accent : '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = C.accent;
+      ctx.lineWidth = a.px(1.5);
+      ctx.stroke();
+    });
+    // while scaling, show what the house is becoming
+    if (st.dragCorner) {
+      var b = houseBounds(lv);
+      text(a, U.ft(lv.width) + '  x  ' + U.ft(lv.height) + '   ·   ' +
+              U.sqft(M.levelArea(lv)).toLocaleString() + ' sq ft',
+           (b.x0 + b.x1) / 2, b.y0 - 40,
+           { size: 13, weight: 700, color: C.accent });
     }
   }
 

@@ -50,6 +50,14 @@ window.FP = window.FP || {};
     M.computeRects(lv);
     var ws = M.walls(lv), t = tol(st), i, j;
 
+    // 0. corner scale handles — they sit on top of the exterior walls
+    if (st.tool === 'select') {
+      var cs = M.corners(lv), ct = tol(st, 9);
+      for (i = 0; i < cs.length; i++) {
+        if (Math.abs(p.x - cs[i].x) < ct && Math.abs(p.y - cs[i].y) < ct)
+          return { kind: 'corner', corner: cs[i] };
+      }
+    }
     // 1. openings (drag handles win over the wall itself)
     for (i = 0; i < ws.length; i++) {
       var w = ws[i], ops = M.openingsFor(lv, w.key);
@@ -168,6 +176,26 @@ window.FP = window.FP || {};
         refreshDragWall(st, down);
         return cb();
       }
+      if (down && down.mode === 'corner') {
+        var cn = down.corner, sn = st.opts.snap;
+        var nw = cn.farX ? p.x : L.width - p.x;
+        var nh = cn.farY ? p.y : L.height - p.y;
+        if (!st.altKey && sn > 0) {
+          nw = Math.round(nw / sn) * sn; nh = Math.round(nh / sn) * sn;
+        }
+        if (st.shiftKey) {                       // lock the proportions
+          var sx = nw / down.w0, sy = nh / down.h0;
+          var k = Math.abs(sx - 1) > Math.abs(sy - 1) ? sx : sy;
+          nw = down.w0 * k; nh = down.h0 * k;
+        }
+        M.scaleLevel(L, nw, nh);
+        // the top and left faces are pinned at the origin, so growing there
+        // moves the far side; shift the view to keep the corner under the cursor
+        if (!cn.farX) st.view.tx -= (L.width - down.prevW) * st.view.scale;
+        if (!cn.farY) st.view.ty -= (L.height - down.prevH) * st.view.scale;
+        down.prevW = L.width; down.prevH = L.height;
+        return cb();
+      }
       if (down && moved && down.mode === 'opening') {
         var ow = down.wall, o = down.opening;
         var along = ow.dir === 'v' ? p.y : p.x;
@@ -245,6 +273,7 @@ window.FP = window.FP || {};
         cursor('crosshair');
       } else {
         if (spaceDown) cursor('grab');
+        else if (h && h.kind === 'corner') cursor(h.corner.id === 'tl' || h.corner.id === 'br' ? 'nwse-resize' : 'nesw-resize');
         else if (h && h.kind === 'opening') cursor('move');
         else if (h && h.kind === 'wall') cursor(h.wall.dir === 'v' ? 'ew-resize' : 'ns-resize');
         else if (h && h.kind === 'bump') cursor('pointer');
@@ -324,7 +353,13 @@ window.FP = window.FP || {};
       }
 
       /* select tool */
-      if (h && h.kind === 'opening') {
+      if (h && h.kind === 'corner') {
+        snap(st);
+        down = { mode: 'corner', corner: h.corner, w0: L.width, h0: L.height,
+                 prevW: L.width, prevH: L.height, sx0: e.clientX, sy0: e.clientY };
+        st.dragCorner = h.corner.id;
+        st.sel = null;
+      } else if (h && h.kind === 'opening') {
         var g = M.openingGeom(h.wall, h.opening);
         var al3 = h.wall.dir === 'v' ? p.y : p.x;
         snap(st);
@@ -384,7 +419,7 @@ window.FP = window.FP || {};
       }
       if (down && !moved && down.mode === 'wall') { /* click-select only */ }
       down = null; moved = false; panning = false;
-      st.dragWall = null; st.swapTarget = null; st.dragTarget = false;
+      st.dragWall = null; st.swapTarget = null; st.dragTarget = false; st.dragCorner = null;
       cursor('default');
       cb(true);
     });

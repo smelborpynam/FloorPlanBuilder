@@ -611,6 +611,51 @@ window.FP = window.FP || {};
     return level;
   }
 
+  /* the four grab handles at the corners of the footprint */
+  function corners(level) {
+    return [
+      { id: 'tl', x: 0, y: 0, farX: false, farY: false },
+      { id: 'tr', x: level.width, y: 0, farX: true, farY: false },
+      { id: 'br', x: level.width, y: level.height, farX: true, farY: true },
+      { id: 'bl', x: 0, y: level.height, farX: false, farY: true }
+    ];
+  }
+
+  /* Scale the whole level to new outside dimensions, keeping everything in
+     proportion. Split ratios are untouched so rooms keep their share, and
+     doors, windows, bump-outs and the porch are carried along by the same
+     factor — otherwise they would stay put while the walls moved past them. */
+  function scaleLevel(level, w, h) {
+    computeRects(level);
+    var w0 = level.width, h0 = level.height;
+    var nw = Math.max(minExt(level.root, 'w'), w);
+    var nh = Math.max(minExt(level.root, 'h'), h);
+    var kx = w0 > 0 ? nw / w0 : 1, ky = h0 > 0 ? nh / h0 : 1;
+
+    var dirOf = {};
+    walls(level).forEach(function (wl) { dirOf[wl.key] = wl.dir; });
+    level.openings.forEach(function (o) {
+      var d = dirOf[o.wall];
+      if (d === 'v') o.off *= ky; else if (d === 'h') o.off *= kx;
+    });
+    (level.bumps || []).forEach(function (b) {
+      var alongX = (b.side === 'back' || b.side === 'front');
+      var k = alongX ? kx : ky;
+      b.off0 *= k; b.off1 *= k;
+      b.depth *= alongX ? ky : kx;
+    });
+    (level.outdoor || []).forEach(function (o) {
+      var alongX = (o.side === 'front' || o.side === 'back');
+      var k = alongX ? kx : ky;
+      o.a0 *= k; o.a1 *= k;
+      o.depth *= alongX ? ky : kx;
+    });
+
+    level.width = nw; level.height = nh;
+    computeRects(level);
+    return level;
+  }
+
   function moveExtWall(level, wall, newPos, scale) {
     var He = EXT_W / 2;
     var axis = (wall.side === 'left' || wall.side === 'right') ? 'w' : 'h';
@@ -621,9 +666,9 @@ window.FP = window.FP || {};
     var delta = target - cur;
     if (Math.abs(delta) < 0.01) return true;
 
-    if (scale) {                       // Shift: the old behaviour, scale it all
-      if (axis === 'w') level.width = target; else level.height = target;
-      computeRects(level);
+    if (scale) {                       // Shift: stretch the whole plan instead
+      if (axis === 'w') scaleLevel(level, target, level.height);
+      else scaleLevel(level, level.width, target);
       return true;
     }
     resizeEdge(level, axis, far ? 'far' : 'near', delta);
@@ -807,7 +852,8 @@ window.FP = window.FP || {};
     bumps: bumps, bumpList: bumpList, bumpArea: bumpArea, bumpSides: bumpSides,
     roomArea: roomArea, outline: outline, addBump: addBump, removeBump: removeBump,
     pruneBumps: pruneBumps,
-    moveWall: moveWall, moveExtWall: moveExtWall, resizeEdge: resizeEdge, setLeafExtent: setLeafExtent,
+    moveWall: moveWall, moveExtWall: moveExtWall, resizeEdge: resizeEdge,
+    corners: corners, scaleLevel: scaleLevel, setLeafExtent: setLeafExtent,
     splitRoom: splitRoom, mergeRooms: mergeRooms, deleteRoom: deleteRoom, swapRooms: swapRooms,
     OPENING_W: OPENING_W, addOpening: addOpening, openingsFor: openingsFor,
     removeOpening: removeOpening, openingGeom: openingGeom, pruneOpenings: pruneOpenings,
